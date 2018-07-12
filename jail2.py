@@ -762,8 +762,8 @@ def isDeclarationType(generalType, specificType):
         return False
     # If get here, generalType must be "old-style" type like 'DrawingCanvas_Clicked' 
     # and specificType must be upgraded type, like 'Canvas.Clicked'
-    elif specificType in AI2_component_specs_nb155: # handles old-style component_event and component_method
-        return AI2_component_specs_nb155[specificType]['type'] == 'component_event'
+    elif specificType in AI1_v134a_component_specs: # handles old-style component_event and component_method
+        return AI1_v134a_component_specs[specificType]['type'] == 'component_event'
     else: 
         return False # Handles old-style component getters and setters. E.g. 'StartButton_GetText'
                      # as well as generic methods, E.g. Canvas.DrawCircleGeneric
@@ -1268,7 +1268,11 @@ def blockDictToArgNames(blockDict):
   return argNames
 
 declarationTypes = ['component_event', 'global_declaration', 'procedures_defnoreturn', 
-                    'procedures_defreturn', 'procedures_callnoreturn', 'procedures_callreturn']
+                    'procedures_defreturn']
+# [2018/07/12, audrey] These were in the "declarationTypes" dict but don't seem to be declaration types
+# themselves??? Also these aren't in the corresponding declarationTypes list in ai2summarizer2.py.
+# So just trying to make it more consistent.
+#, 'procedures_callnoreturn', 'procedures_callreturn']
 
 nonDeclarationTypes = ['component_method', 'component_set_get']
 
@@ -1301,7 +1305,9 @@ def blockType(xmlBlock):
          Now also handles generic methods and getters/setters: 
              e.g. Canvas.DrawCircleGeneric and Button.GetTextGeneric
     '''
-    tipe = xmlBlock.attrib['type']    
+    # [2018/07/11, audrey] Make consistent with changes to same function in ai2summarizer2.py
+    return componentTypeToBlockType(xmlBlock, xmlBlock.attrib['type'])
+    '''tipe = xmlBlock.attrib['type']    
     # Debugging:
     # print "***blockType", xmlBlock, tipe
     if tipe == 'component_event':
@@ -1345,7 +1351,7 @@ def blockType(xmlBlock):
         # [2018/07/12] update to reflect removal of upgradeFormat
         return upgradeTypeFormat(tipe)
     else:
-        return tipe
+        return tipe'''
 
 
 # [Maja, 2015/11/15] Create
