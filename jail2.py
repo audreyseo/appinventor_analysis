@@ -36,7 +36,8 @@ I've also added in the globals
 * printMessagesToConsole
 
 for various logging reasons, which was for debugging. jail2.py should work completely
-now, and it needs the support file dictionaries.py.
+now, and it needs the support file dictionaries.py. I made the most changes to
+blockToJAIL in order to get rid of the bugs.
 
 -------------------------------------------------------------------------------
 2016/11/19 (Lyn):
@@ -676,6 +677,7 @@ def bkyToJAIL(zippedFile, bkyFileName):
 
 # Only called on XML with tag = 'block'
 # Return a dictionary with all info of block
+# [2018/07/12, audrey] clean up logic/variable names to get rid of bug
 def blockToJAIL(xmlBlock):
   blockDict = {}
   statements = {} # Map statement names to list of statement blocks
@@ -695,10 +697,13 @@ def blockToJAIL(xmlBlock):
         blockDict['kind'] = 'declaration'
     else:
       blockDict[property] = xmlBlock.attrib[property]
-  # [2018/07/12, audrey] add blkType because apparently this function was looking for some variable "type" that was never actually defined, instantiated, or anything????
+  # [2018/07/12, audrey] add blkType because apparently this function
+  # was looking for some variable "type" that was never actually
+  # defined, instantiated, or anything???? So it was actually comparing
+  # the block type strings to a function lmao.
   # So I took this cue from addBlockInfo in ai2summarizer2.py.
   blkType = blockType(xmlBlock)
-  logwrite("blockToJAIL: " + blkType)
+  #logwrite("blockToJAIL: " + blkType)
   if '*type' not in blockDict: 
     raise RuntimeError('blockToJAIL: block has no type!')
   counter = 0
@@ -708,7 +713,7 @@ def blockToJAIL(xmlBlock):
       # Add each mutation attribute to block blockDict
       for property in child.attrib:
         blockDict[property] = child.attrib[property]
-      logwrite("blockToJAIL: " + str(child))
+      #logwrite("blockToJAIL: " + str(child))
       if (blkType == 'procedures_defnoreturn' or blkType == 'procedures_defreturn' 
           or blkType == 'procedures_callnoreturn' or blkType == 'procedures_callreturn'):
         # For procedure declarations and calls, collect argument names in params property
@@ -719,11 +724,10 @@ def blockToJAIL(xmlBlock):
             params.append(param.attrib['name']) # Name of parameter (so-called 'arg' in XML)
           else: 
             raise RuntimeError('blockToJAIL: unexpected tag in procedure block mutation -- ' + param.tag)
-        if 'params' not in blockDict:
-            # [2018/07/12, audrey] add str( ) around blockDict
-            # [2018/07/12, audrey] decided this wasn't an error because it was being set off by procedures that simply don't have arguments lmao
-            blockDict['params'] = []
-            # raise RuntimeError('blockToJAIL: params unexpectedly missing from blockDict -- ' + str(blockDict))
+        # [2018/07/12, audrey] decided this wasn't an error because it was being set off by procedures that simply don't have arguments lmao
+        #if 'params' not in blockDict:
+          # [2018/07/12, audrey] add str( ) around blockDict
+          #  raise RuntimeError('blockToJAIL: params unexpectedly missing from blockDict -- ' + str(blockDict))
         blockDict['params'] = params
       elif blkType == 'local_declaration_statement' or blkType == 'local_declaration_expression':
         # For local variable declarations, collect local variable names in params property
