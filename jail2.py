@@ -8,7 +8,8 @@
 #   This incorporated some code by Benji and was heavily edited by Lyn 
 # * 2016-11-19: As part of writing FLAIRS paper with Eni & Maja, lyn
 #   adapted most current state of ai2_summarizer to do full JAIL again
-# * 2018-07-11: Audrey begins to bring in ai2summarizer2 code
+# * 2018-07-11: Audrey brought in more code from ai2summarizer2, and
+#   actually got jail working completely.
 #
 # TODO:
 # As of 2016-11-19:
@@ -27,6 +28,15 @@ The functions that I've added include
 * upgradeNameFormat
 * upgradeTypeFormat
 * warningIgnoringMalformedBlock
+
+I've also added in the globals
+
+* logPrefix
+* logStartTime
+* printMessagesToConsole
+
+for various logging reasons, which was for debugging. jail2.py should work completely
+now, and it needs the support file dictionaries.py.
 
 -------------------------------------------------------------------------------
 2016/11/19 (Lyn):
@@ -685,27 +695,37 @@ def blockToJAIL(xmlBlock):
         blockDict['kind'] = 'declaration'
     else:
       blockDict[property] = xmlBlock.attrib[property]
+  # [2018/07/12, audrey] add blkType because apparently this function was looking for some variable "type" that was never actually defined, instantiated, or anything????
+  # So I took this cue from addBlockInfo in ai2summarizer2.py.
+  blkType = blockType(xmlBlock)
+  logwrite("blockToJAIL: " + blkType)
   if '*type' not in blockDict: 
     raise RuntimeError('blockToJAIL: block has no type!')
+  counter = 0
   for child in xmlBlock:
-    if child.tag == 'mutation': 
+    counter += 1
+    if child.tag == 'mutation':
       # Add each mutation attribute to block blockDict
       for property in child.attrib:
         blockDict[property] = child.attrib[property]
-      if (type == 'procedures_defnoreturn' or type == 'procedures_defreturn' 
-          or type == 'procedures_callnoreturn' or type == 'procedures_callreturn'):
+      logwrite("blockToJAIL: " + str(child))
+      if (blkType == 'procedures_defnoreturn' or blkType == 'procedures_defreturn' 
+          or blkType == 'procedures_callnoreturn' or blkType == 'procedures_callreturn'):
         # For procedure declarations and calls, collect argument names in params property
         # (params is a better name than args)
         params = [] 
         for param in child:
-          if param.tag == 'arg': 
+          if param.tag == 'arg':
             params.append(param.attrib['name']) # Name of parameter (so-called 'arg' in XML)
           else: 
             raise RuntimeError('blockToJAIL: unexpected tag in procedure block mutation -- ' + param.tag)
         if 'params' not in blockDict:
-            raise RuntimeError('blockToJAIL: params unexpectedly missing from blockDict -- ' + blockDict)
+            # [2018/07/12, audrey] add str( ) around blockDict
+            # [2018/07/12, audrey] decided this wasn't an error because it was being set off by procedures that simply don't have arguments lmao
+            blockDict['params'] = []
+            # raise RuntimeError('blockToJAIL: params unexpectedly missing from blockDict -- ' + str(blockDict))
         blockDict['params'] = params
-      elif type == 'local_declaration_statement' or type == 'local_declaration_expression':
+      elif blkType == 'local_declaration_statement' or blkType == 'local_declaration_expression':
         # For local variable declarations, collect local variable names in params property
         # (named consistently with other bound variables)
         params = [] 
@@ -715,28 +735,30 @@ def blockToJAIL(xmlBlock):
           else: 
             raise RuntimeError('blockToJAIL: unexpected tag in local variable declaration block mutation -- ' + param.tag)
         blockDict['params'] = params
-      else: 
+      else:
         # Sanity check: verify that other mutation elements don't have children
         # (other than 'eventparam', which is used for translating event parameters)
         mutationChildren = list(child)
-        unexpectedTags = filter(lambda mchild: mchild.tag != 'eventparam', mutationChildren)
+        # [2018/07/12, audrey] added list( ) around the call to filter because filter returns an
+        # iterator, not a list itself, and you cannot take the len( ) of an iterator.
+        unexpectedTags = list(map(lambda mchild: mchild.tag, list(filter(lambda mchild: mchild.tag != 'eventparam', mutationChildren))))
         if len(unexpectedTags) != 0:
           raise RuntimeError('blockToJAIL: unexpected mutation children with tags ' + 
                              ",".join(unexpectedTags))
     elif child.tag == 'field' or child.tag == 'title': # TITLE is old name for FIELD
-       blockDict[child.attrib['name']] = child.text
+      blockDict[child.attrib['name']] = child.text
     elif child.tag == 'comment':
-       blockDict['comment'] = commentToJAIL(child)
-    elif child.tag == 'value': 
-       values[child.attrib['name']] = valueToJAIL(child)
-    elif child.tag == 'statement': 
-       statements[child.attrib['name']] = statementToJAIL(child)
-    elif child.tag == 'next': 
-       kind = determineKind(blockDict)
-       if kind != 'statement':
-         raise RuntimeError('blockToJail: next tag found in nonstatement ' + str(xmlBlock))
-       else: 
-         blockDict['next'] = nextToJAIL(child)
+      blockDict['comment'] = commentToJAIL(child)
+    elif child.tag == 'value':
+      values[child.attrib['name']] = valueToJAIL(child)
+    elif child.tag == 'statement':
+      statements[child.attrib['name']] = statementToJAIL(child)
+    elif child.tag == 'next':
+      kind = determineKind(blockDict)
+      if kind != 'statement':
+        raise RuntimeError('blockToJail: next tag found in nonstatement ' + str(xmlBlock))
+      else: 
+        blockDict['next'] = nextToJAIL(child)
     else: 
       raise RuntimeError('blockToJAIL: unexpected child tag -- ' + child.tag)
   determineKind(blockDict)
@@ -985,6 +1007,7 @@ def warningIgnoringMalformedBlock(callingFunctionName, hasMutation, tipe, xmlBlo
 # [2018/07/12, audrey] Taken from ai2summarizer2 to bring jail up to speed
 def componentTypeToBlockType(xmlBlock, tipe):
     # Debugging:
+    #logwrite("componentTypeToBlockType")
     # print "***blockType", xmlBlock, tipe
     if tipe == '*IGNORE*': # Special string meaning something is wrong with block and it should be ignored
         return '*IGNORE*'
@@ -1052,6 +1075,7 @@ def componentTypeToBlockType(xmlBlock, tipe):
        
         return upgradeTypeFormat(tipe)
     else:
+        #logwrite("componentTypeToBlockType: Exit")
         return tipe
 
 
@@ -1162,7 +1186,9 @@ def componentTypeToBlockName(xmlBlock, tipe):
 # [2017/03/26, lyn] Added
 # [2018/07/12, audrey] taken from ai2summarizer2.py to bring jail up to speed
 def upgradeNameFormat(tipe):
+    logwrite("upgradeNameFormat: about to split")
     action = tipe.split('_')[-1]
+    logwrite("upgradeNameFormat: about to join and split")
     compName = '_'.join(tipe.split('_')[:-1]) # Fixed by lyn
     compType = findComponentType(compName)
     if compType == None:
@@ -1187,8 +1213,8 @@ def lookupMethod(componentName, methodName):
   if handler not in AI2_component_specs_nb155:
     raise RuntimeError("lookupMethod: unknown method name " + methodName + " for component " + componentName)
   methodEntry = AI2_component_specs_nb155[handler]
-  print "before methodEntry['paramNames'] for " + handler
-  print methodEntry['paramNames']
+  #print "before methodEntry['paramNames'] for " + handler
+  #print methodEntry['paramNames']
   return (methodEntry['kind'], len(methodEntry['paramNames']))
 
 # Returns parameter names for event
@@ -1358,6 +1384,7 @@ def blockType(xmlBlock):
 # [2016/08/06, lyn] Modified to handle generic types
 # [2017/03/29, lyn] Modified to handle nonworking cases
 def upgradeTypeFormat(tipe):
+    logwrite("upgradeTypeFormat")
     action = tipe.split('_')[-1]
     logwrite("upgradeTypeFormat: about to attempt to join")
     compName = '_'.join(tipe.split('_')[:-1]) # Fixed by lyn
@@ -1510,620 +1537,35 @@ def cleanup(dirName, fileType):
               if projectPath.endswith(fileType):
                   os.remove(projectPath)
 
-''' from jail.py '''
-blockTypeDict = {
+# Deleted a bunch of dictionaries from here because they should be in dictionary.py
 
-  # Component events                                                                                                    
-  'component_event': {'kind': 'declaration'},
+# -------------------------------------------------------------------------------
+# [2018/07/12, audrey] Updated logging using functions from ai2summarizer2,
+# to make it more consistent. Also the time logging feature is very helpful.
 
-  # Component properties                                                                                                
-  # These are handled specially in determineKind, which does not check these entries for kind                           
-  'component_get': {'argNames': [], 'kind': 'expression'},
-  'component_set': {'argNames': ['VALUE'], 'kind': 'statement'},
-
-  # Component method calls                                                                                              
-  # These are handled specially in determineKind, which does not check these entries for kind                           
-  'component_method_call_expression': {'kind': 'expression'},
-  'component_method_call_statement': {'kind': 'statement'},
-
-  # Component value blocks (for generics)                                                                               
-  'component_component_block': {'argNames': [], 'kind': 'expression'},
-
-  # Variables                                                                                                          \
-                                                                                                                        
-  'global_declaration': {'argNames': ['VALUE'], 'kind': 'declaration'},
-  'lexical_variable_get': {'argNames': [], 'kind': 'expression'},
-  'lexical_variable_set': {'argNames': ['VALUE'], 'kind': 'statement'},
-  'local_declaration_statement': {'kind': 'statement'},
-  'local_declaration_expression': {'kind': 'expression'},
- # Procedure declarations and calls                                                                                   \
-                                                                                                                        
-  'procedures_defnoreturn': {'kind': 'declaration'},
-  'procedures_defreturn': {'kind': 'declaration'},
-  'procedures_callnoreturn': {'kind': 'statement'},
-  'procedures_callreturn': {'kind': 'expression'},
-
-  # Control blocks
-                                                                                                                        
-  'controls_choose': {'argNames': ['TEST', 'THENRETURN', 'ELSERETURN'], 'kind': 'expression'},
-  'controls_if': {'kind': 'statement'}, # all sockets handled specially                                                 
-  'controls_eval_but_ignore': {'argNames':['VALUE'], 'kind': 'statement'},
-  'controls_forEach': {'argNames': ['LIST'], 'kind': 'statement'}, # body statement socket handled specially            
-  'controls_forRange': {'argNames': ['START', 'END', 'STEP'], 'kind': 'statement'}, # body statement socket handled specially
-  'controls_while': {'argNames': ['TEST'], 'kind': 'statement'}, # body statement socket handled specially              
-  'controls_do_then_return': {'kind': 'expression'}, # all sockets handled specially                                    
-
-  # Control ops on screen:                                                                                                             
-  'controls_closeApplication': {'argNames':[], 'kind': 'statement'},
-  'controls_closeScreen': {'argNames':[], 'kind': 'statement'},
-  'controls_closeScreenWithPlainText': {'argNames':['TEXT'], 'kind': 'statement'},
-  'controls_closeScreenWithValue': {'argNames':['SCREEN'], 'kind': 'statement'},
-  'controls_getPlainStartText': {'argNames':[], 'kind': 'expression'},
-  'controls_getStartValue': {'argNames':[], 'kind': 'expression'},
-  'controls_openAnotherScreen': {'argNames':['SCREEN'], 'kind': 'statement'},
-  'controls_openAnotherScreenWithStartValue': {'argNames':['SCREENNAME', 'STARTVALUE'], 'kind': 'statement'},
-
-  # Colors
-
-  'color_black': {'argNames': [], 'kind': 'expression'},
-  'color_blue': {'argNames': [], 'kind': 'expression'},
-  'color_cyan': {'argNames': [], 'kind': 'expression'},
-  'color_dark_gray': {'argNames': [], 'kind': 'expression'},
-  'color_light_gray': {'argNames': [], 'kind': 'expression'},
-  'color_gray': {'argNames': [], 'kind': 'expression'},
-  'color_green': {'argNames': [], 'kind': 'expression'},
-  'color_magenta': {'argNames': [], 'kind': 'expression'},
-  'color_orange': {'argNames': [], 'kind': 'expression'},
-  'color_pink': {'argNames': [], 'kind': 'expression'},
-  'color_red': {'argNames': [], 'kind': 'expression'},
-  'color_white': {'argNames': [], 'kind': 'expression'},
-  'color_yellow': {'argNames': [], 'kind': 'expression'},
-
-  # Color ops:                                                                                                         \
-                                                                                                                        
-  'color_make_color': {'argNames':['COLORLIST'], 'kind': 'expression'},
-  'color_split_color': {'argNames':['COLOR'], 'kind': 'expression'},
-
-  # Logic                                                                                                               
-  'logic_boolean': {'argNames': [], 'kind': 'expression'},
-  'logic_false': {'argNames': [], 'kind': 'expression'}, # Together with logic boolean                                  
-  'logic_compare': {'argNames': ['A', 'B'], 'kind': 'expression'},
-  'logic_negate': {'argNames': ['BOOL'], 'kind': 'expression'},
-  'logic_operation': {'argNames': ['A', 'B'], 'kind': 'expression'},
-  'logic_or': {'argNames': ['A', 'B'], 'kind': 'expression'}, # Together with logic_operation                           
-
-  # Lists                                                                                                               
-  'lists_create_with': {'expandableArgName': 'ADD', 'kind': 'expression'},
-  'lists_add_items': {'argNames': ['LIST'], 'expandableArgName':'ITEM', 'kind': 'statement'},
-  'lists_append_list': {'argNames': ['LIST0', 'LIST1'], 'kind': 'statement'},
-  'lists_copy': {'argNames': ['LIST'], 'kind': 'expression'},
-  'lists_insert_item': {'argNames': ['LIST', 'INDEX', 'ITEM'], 'kind': 'statement'},
-  'lists_is_list': {'argNames': ['ITEM'], 'kind': 'expression'},
-  'lists_is_in': {'argNames':['ITEM', 'LIST'], 'kind': 'expression'},
-  'lists_is_empty': {'argNames': ['LIST'], 'kind': 'expression'},
-  'lists_length': {'argNames':['LIST'], 'kind': 'expression'},
-  'lists_from_csv_row': {'argNames': ['TEXT'], 'kind': 'expression'},
-  'lists_to_csv_row': {'argNames': ['LIST'], 'kind': 'expression'},
-  'lists_from_csv_table': {'argNames': ['TEXT'], 'kind': 'expression'},
-  'lists_to_csv_table': {'argNames': ['LIST'], 'kind': 'expression'},
-  'lists_lookup_in_pairs': {'argNames': ['KEY', 'LIST', 'NOTFOUND'], 'kind': 'expression'},
-  'lists_pick_random_item': {'argNames':['LIST'], 'kind': 'expression'},
-  'lists_position_in': {'argNames':['ITEM', 'LIST'], 'kind': 'expression'},
-  'lists_select_item': {'argNames': ['LIST', 'NUM'], 'kind': 'expression'},
-  'lists_remove_item': {'argNames': ['LIST', 'INDEX'], 'kind': 'statement'},
-  'lists_replace_item': {'argNames': ['LIST', 'NUM', 'ITEM'], 'kind': 'statement'},
-
-  # Math
-
-  'math_number': {'argNames': [], 'kind': 'expression'},
-  'math_compare': {'argNames': ['A', 'B'], 'kind': 'expression'},
-  'math_add': {'expandableArgName': 'NUM', 'kind': 'expression'},
-  'math_multiply': {'expandableArgName': 'NUM', 'kind': 'expression'},
-  'math_subtract': {'argNames':['A', 'B'], 'kind': 'expression'},
-  'math_division': {'argNames':['A', 'B'], 'kind': 'expression'},
-  'math_power': {'argNames':['A', 'B'], 'kind': 'expression'},
-  'math_random_int': {'argNames':['FROM', 'TO'], 'kind': 'expression'},
-  'math_random_float': {'argNames':[], 'kind': 'expression'},
-  'math_random_set_seed': {'argNames':['NUM'], 'kind': 'statement'},
-  'math_single': {'argNames':['NUM'], 'kind': 'expression'},
-  'math_abs': {'argNames':['NUM'], 'kind': 'expression'}, # Together with math_single                                   
-  'math_neg': {'argNames':['NUM'], 'kind': 'expression'}, # Together with math_single                                   
-  'math_round': {'argNames':['NUM'], 'kind': 'expression'}, # Together with math_single                                 
-  'math_ceiling': {'argNames':['NUM'], 'kind': 'expression'}, # Together with math_single                               
-  'math_floor': {'argNames':['NUM'], 'kind': 'expression'}, # Together with math_single                                 
-  'math_divide': {'argNames':['DIVIDEND', 'DIVISOR'], 'kind': 'expression'},
-  'math_on_list': {'expandableArgName': 'NUM', 'kind': 'expression'},
-  'math_trig': {'argNames':['NUM'], 'kind': 'expression'},
-  'math_cos': {'argNames':['NUM'], 'kind': 'expression'}, # Together with math_trig                                     
-  'math_tan': {'argNames':['NUM'], 'kind': 'expression'}, # Together with math_trig                                     
-  'math_atan2': {'argNames':['Y', 'X'], 'kind': 'expression'},
-  'math_convert_angles': {'argNames':['NUM'], 'kind': 'expression'},
-  'math_format_as_decimal': {'argNames':['NUM', 'PLACES'], 'kind': 'expression'},
-  'math_is_a_number': {'argNames':['NUM'], 'kind': 'expression'},
-  'math_convert_number': {'argNames':['NUM'], 'kind': 'expression'},
-
-  # Strings/text                                                                                                       
-                                                                                                                        
-  'text': {'argNames':[], 'kind': 'expression'},
-  'text_join': {'expandableArgName': 'ADD', 'kind': 'expression'},
-  'text_contains': {'argNames': ['TEXT', 'PIECE'], 'kind': 'expression'},
-  'text_changeCase': {'argNames': ['TEXT'], 'kind': 'expression'},
-  'text_isEmpty': {'argNames': ['VALUE'], 'kind': 'expression'},
-  'text_compare': {'argNames': ['TEXT1', 'TEXT2'], 'kind': 'expression'},
-  'text_length': {'argNames': ['VALUE'], 'kind': 'expression'},
-  'text_replace_all': {'argNames': ['TEXT', 'SEGMENT', 'REPLACEMENT'], 'kind': 'expression'},
-  'text_starts_at': {'argNames': ['TEXT', 'PIECE'], 'kind': 'expression'},
-  'text_split': {'argNames': ['TEXT', 'AT'], 'kind': 'expression'},
-  'text_split_at_spaces': {'argNames': ['TEXT'], 'kind': 'expression'}, # [2016/08/06, lyn] Added this missing entry
-  'text_segment': {'argNames': ['TEXT', 'START', 'LENGTH'], 'kind': 'expression'},
-  'text_trim': {'argNames': ['TEXT'], 'kind': 'expression'},
-  'obfuscated_text': {'argNames': ['TEXT'], 'kind': 'expression'},  # [2016/08/06, lyn] Added this missing entry
-  'obsufcated_text': {'argNames': ['TEXT'], 'kind': 'expression'},  # [2016/08/06, lyn] Added this missing entry (early misspelling of obfuscated_text)
-
-}
-
-# ----------------------------------------------------------------------
-# Changes by lyn
-
-''' Lyn snarfed the following JSON from his AI1 to AI2 converter.
-    It describes component events and methods from v134a of AI1, which should be consistent
-    with "old" projects that need to be upgraded. 
-    Lyn manually edited it to change hyphens to dots in keys, e.g. "Button-Click" => "Button.Click"
-'''
-"""AI1_v134a_component_specs = {
-    "AccelerometerSensor.AccelerationChanged": {"params": ["xAccel", "yAccel", "zAccel"], "type": "component_event"},
-    "AccelerometerSensor.Shaking": {"params": [], "type": "component_event"},
-    "ActivityStarter.ActivityError": {"params": ["message"], "type": "component_event"},
-    "ActivityStarter.AfterActivity": {"params": ["result"], "type": "component_event"},
-    "ActivityStarter.ResolveActivity": {"kind": "expression", "params": [], "type": "component_method"},
-    "ActivityStarter.StartActivity": {"kind": "statement", "params": [], "type": "component_method"},
-    "Ball.Bounce": {"kind": "statement", "params": ["edge"], "type": "component_method"},
-    "Ball.CollidedWith": {"params": ["other"], "type": "component_event"},
-    "Ball.CollidingWith": {"kind": "expression", "params": ["other"], "type": "component_method"},
-    "Ball.Dragged": {"params": ["startX", "startY", "prevX", "prevY", "currentX", "currentY"], "type": "component_event"},
-    "Ball.EdgeReached": {"params": ["edge"], "type": "component_event"},
-    "Ball.Flung": {"params": ["x", "y", "speed", "heading", "xvel", "yvel"], "type": "component_event"},
-    "Ball.MoveIntoBounds": {"kind": "statement", "params": [], "type": "component_method"},
-    "Ball.MoveTo": {"kind": "statement", "params": ["x", "y"], "type": "component_method"},
-    "Ball.NoLongerCollidingWith": {"params": ["other"], "type": "component_event"},
-    "Ball.PointInDirection": {"kind": "statement", "params": ["x", "y"], "type": "component_method"},
-    "Ball.PointTowards": {"kind": "statement", "params": ["target"], "type": "component_method"},
-    "Ball.TouchDown": {"params": ["x", "y"], "type": "component_event"},
-    "Ball.TouchUp": {"params": ["x", "y"], "type": "component_event"},
-    "Ball.Touched": {"params": ["x", "y"], "type": "component_event"},
-    "BarcodeScanner.AfterScan": {"params": ["result"], "type": "component_event"},
-    "BarcodeScanner.DoScan": {"kind": "statement", "params": [], "type": "component_method"},
-    "BluetoothClient.BluetoothError": {"params": ["functionName", "message"], "type": "component_event"},
-    "BluetoothClient.BytesAvailableToReceive": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothClient.Connect": {"kind": "expression", "params": ["address"], "type": "component_method"},
-    "BluetoothClient.ConnectWithUUID": {"kind": "expression", "params": ["address", "uuid"], "type": "component_method"},
-    "BluetoothClient.Disconnect": {"kind": "statement", "params": [], "type": "component_method"},
-    "BluetoothClient.IsDevicePaired": {"kind": "expression", "params": ["address"], "type": "component_method"},
-    "BluetoothClient.ReceiveSigned1ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothClient.ReceiveSigned2ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothClient.ReceiveSigned4ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothClient.ReceiveSignedBytes": {"kind": "expression", "params": ["numberOfBytes"], "type": "component_method"},
-    "BluetoothClient.ReceiveText": {"kind": "expression", "params": ["numberOfBytes"], "type": "component_method"},
-    "BluetoothClient.ReceiveUnsigned1ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothClient.ReceiveUnsigned2ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothClient.ReceiveUnsigned4ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothClient.ReceiveUnsignedBytes": {"kind": "expression", "params": ["numberOfBytes"], "type": "component_method"},
-    "BluetoothClient.Send1ByteNumber": {"kind": "statement", "params": ["number"], "type": "component_method"},
-    "BluetoothClient.Send2ByteNumber": {"kind": "statement", "params": ["number"], "type": "component_method"},
-    "BluetoothClient.Send4ByteNumber": {"kind": "statement", "params": ["number"], "type": "component_method"},
-    "BluetoothClient.SendBytes": {"kind": "statement", "params": ["list"], "type": "component_method"},
-    "BluetoothClient.SendText": {"kind": "statement", "params": ["text"], "type": "component_method"},
-    "BluetoothServer.AcceptConnection": {"kind": "statement", "params": ["serviceName"], "type": "component_method"},
-    "BluetoothServer.AcceptConnectionWithUUID": {"kind": "statement", "params": ["serviceName", "uuid"], "type": "component_method"},
-    "BluetoothServer.BluetoothError": {"params": ["functionName", "message"], "type": "component_event"},
-    "BluetoothServer.BytesAvailableToReceive": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothServer.ConnectionAccepted": {"params": [], "type": "component_event"},
-    "BluetoothServer.Disconnect": {"kind": "statement", "params": [], "type": "component_method"},
-    "BluetoothServer.ReceiveSigned1ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothServer.ReceiveSigned2ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothServer.ReceiveSigned4ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothServer.ReceiveSignedBytes": {"kind": "expression", "params": ["numberOfBytes"], "type": "component_method"},
-    "BluetoothServer.ReceiveText": {"kind": "expression", "params": ["numberOfBytes"], "type": "component_method"},
-    "BluetoothServer.ReceiveUnsigned1ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothServer.ReceiveUnsigned2ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothServer.ReceiveUnsigned4ByteNumber": {"kind": "expression", "params": [], "type": "component_method"},
-    "BluetoothServer.ReceiveUnsignedBytes": {"kind": "expression", "params": ["numberOfBytes"], "type": "component_method"},
-    "BluetoothServer.Send1ByteNumber": {"kind": "statement", "params": ["number"], "type": "component_method"},
-    "BluetoothServer.Send2ByteNumber": {"kind": "statement", "params": ["number"], "type": "component_method"},
-    "BluetoothServer.Send4ByteNumber": {"kind": "statement", "params": ["number"], "type": "component_method"},
-    "BluetoothServer.SendBytes": {"kind": "statement", "params": ["list"], "type": "component_method"},
-    "BluetoothServer.SendText": {"kind": "statement", "params": ["text"], "type": "component_method"},
-    "BluetoothServer.StopAccepting": {"kind": "statement", "params": [], "type": "component_method"},
-    "Button.Click": {"params": [], "type": "component_event"},
-    "Button.GotFocus": {"params": [], "type": "component_event"},
-    "Button.LongClick": {"params": [], "type": "component_event"},
-    "Button.LostFocus": {"params": [], "type": "component_event"},
-    "Camcorder.AfterRecording": {"params": ["clip"], "type": "component_event"},
-    "Camcorder.RecordVideo": {"kind": "statement", "params": [], "type": "component_method"},
-    "Camera.AfterPicture": {"params": ["image"], "type": "component_event"},
-    "Camera.TakePicture": {"kind": "statement", "params": [], "type": "component_method"},
-    "Canvas.Clear": {"kind": "statement", "params": [], "type": "component_method"},
-    "Canvas.Dragged": {"params": ["startX", "startY", "prevX", "prevY", "currentX", "currentY", "draggedSprite"], "type": "component_event"},
-    "Canvas.DrawCircle": {"kind": "statement", "params": ["x", "y", "r"], "type": "component_method"},
-    "Canvas.DrawLine": {"kind": "statement", "params": ["x1", "y1", "x2", "y2"], "type": "component_method"},
-    "Canvas.DrawPoint": {"kind": "statement", "params": ["x", "y"], "type": "component_method"},
-    "Canvas.DrawText": {"kind": "statement", "params": ["text", "x", "y"], "type": "component_method"},
-    "Canvas.DrawTextAtAngle": {"kind": "statement", "params": ["text", "x", "y", "angle"], "type": "component_method"},
-    "Canvas.Flung": {"params": ["x", "y", "speed", "heading", "xvel", "yvel", "flungSprite"], "type": "component_event"},
-    "Canvas.GetBackgroundPixelColor": {"kind": "expression", "params": ["x", "y"], "type": "component_method"},
-    "Canvas.GetPixelColor": {"kind": "expression", "params": ["x", "y"], "type": "component_method"},
-    "Canvas.Save": {"kind": "expression", "params": [], "type": "component_method"},
-    "Canvas.SaveAs": {"kind": "expression", "params": ["fileName"], "type": "component_method"},
-    "Canvas.SetBackgroundPixelColor": {"kind": "statement", "params": ["x", "y", "color"], "type": "component_method"},
-    "Canvas.TouchDown": {"params": ["x", "y"], "type": "component_event"},
-    "Canvas.TouchUp": {"params": ["x", "y"], "type": "component_event"},
-    "Canvas.Touched": {"params": ["x", "y", "touchedSprite"], "type": "component_event"},
-    "CheckBox.Changed": {"params": [], "type": "component_event"},
-    "CheckBox.GotFocus": {"params": [], "type": "component_event"},
-    "CheckBox.LostFocus": {"params": [], "type": "component_event"},
-    "Clock.AddDays": {"kind": "expression", "params": ["instant", "days"], "type": "component_method"},
-    "Clock.AddHours": {"kind": "expression", "params": ["instant", "hours"], "type": "component_method"},
-    "Clock.AddMinutes": {"kind": "expression", "params": ["instant", "minutes"], "type": "component_method"},
-    "Clock.AddMonths": {"kind": "expression", "params": ["instant", "months"], "type": "component_method"},
-    "Clock.AddSeconds": {"kind": "expression", "params": ["instant", "seconds"], "type": "component_method"},
-    "Clock.AddWeeks": {"kind": "expression", "params": ["instant", "weeks"], "type": "component_method"},
-    "Clock.AddYears": {"kind": "expression", "params": ["instant", "years"], "type": "component_method"},
-    "Clock.DayOfMonth": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.Duration": {"kind": "expression", "params": ["start", "end"], "type": "component_method"},
-    "Clock.FormatDate": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.FormatDateTime": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.FormatTime": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.GetMillis": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.Hour": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.MakeInstant": {"kind": "expression", "params": ["from"], "type": "component_method"},
-    "Clock.MakeInstantFromMillis": {"kind": "expression", "params": ["millis"], "type": "component_method"},
-    "Clock.Minute": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.Month": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.MonthName": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.Now": {"kind": "expression", "params": [], "type": "component_method"},
-    "Clock.Second": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.SystemTime": {"kind": "expression", "params": [], "type": "component_method"},
-    "Clock.Timer": {"params": [], "type": "component_event"},
-    "Clock.Weekday": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.WeekdayName": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "Clock.Year": {"kind": "expression", "params": ["instant"], "type": "component_method"},
-    "ContactPicker.AfterPicking": {"params": [], "type": "component_event"},
-    "ContactPicker.BeforePicking": {"params": [], "type": "component_event"},
-    "ContactPicker.GotFocus": {"params": [], "type": "component_event"},
-    "ContactPicker.LostFocus": {"params": [], "type": "component_event"},
-    "ContactPicker.Open": {"kind": "statement", "params": [], "type": "component_method"},
-    "EmailPicker.GotFocus": {"params": [], "type": "component_event"},
-    "EmailPicker.LostFocus": {"params": [], "type": "component_event"},
-    "FusiontablesControl.DoQuery": {"kind": "statement", "params": [], "type": "component_method"},
-    "FusiontablesControl.ForgetLogin": {"kind": "statement", "params": [], "type": "component_method"},
-    "FusiontablesControl.GotResult": {"params": ["result"], "type": "component_event"},
-    "FusiontablesControl.SendQuery": {"kind": "statement", "params": [], "type": "component_method"},
-    "GameClient.FunctionCompleted": {"params": ["functionName"], "type": "component_event"},
-    "GameClient.GetInstanceLists": {"kind": "statement", "params": [], "type": "component_method"},
-    "GameClient.GetMessages": {"kind": "statement", "params": ["type", "count"], "type": "component_method"},
-    "GameClient.GotMessage": {"params": ["type", "sender", "contents"], "type": "component_event"},
-    "GameClient.Info": {"params": ["message"], "type": "component_event"},
-    "GameClient.InstanceIdChanged": {"params": ["instanceId"], "type": "component_event"},
-    "GameClient.Invite": {"kind": "statement", "params": ["playerEmail"], "type": "component_method"},
-    "GameClient.Invited": {"params": ["instanceId"], "type": "component_event"},
-    "GameClient.LeaveInstance": {"kind": "statement", "params": [], "type": "component_method"},
-    "GameClient.MakeNewInstance": {"kind": "statement", "params": ["instanceId", "makePublic"], "type": "component_method"},
-    "GameClient.NewInstanceMade": {"params": ["instanceId"], "type": "component_event"},
-    "GameClient.NewLeader": {"params": ["playerId"], "type": "component_event"},
-    "GameClient.PlayerJoined": {"params": ["playerId"], "type": "component_event"},
-    "GameClient.PlayerLeft": {"params": ["playerId"], "type": "component_event"},
-    "GameClient.SendMessage": {"kind": "statement", "params": ["type", "recipients", "contents"], "type": "component_method"},
-    "GameClient.ServerCommand": {"kind": "statement", "params": ["command", "arguments"], "type": "component_method"},
-    "GameClient.ServerCommandFailure": {"params": ["command", "arguments"], "type": "component_event"},
-    "GameClient.ServerCommandSuccess": {"params": ["command", "response"], "type": "component_event"},
-    "GameClient.SetInstance": {"kind": "statement", "params": ["instanceId"], "type": "component_method"},
-    "GameClient.SetLeader": {"kind": "statement", "params": ["playerEmail"], "type": "component_method"},
-    "GameClient.UserEmailAddressSet": {"params": ["emailAddress"], "type": "component_event"},
-    "GameClient.WebServiceError": {"params": ["functionName", "message"], "type": "component_event"},
-    "ImagePicker.AfterPicking": {"params": [], "type": "component_event"},
-    "ImagePicker.BeforePicking": {"params": [], "type": "component_event"},
-    "ImagePicker.GotFocus": {"params": [], "type": "component_event"},
-    "ImagePicker.LostFocus": {"params": [], "type": "component_event"},
-    "ImagePicker.Open": {"kind": "statement", "params": [], "type": "component_method"},
-    "ImageSprite.Bounce": {"kind": "statement", "params": ["edge"], "type": "component_method"},
-    "ImageSprite.CollidedWith": {"params": ["other"], "type": "component_event"},
-    "ImageSprite.CollidingWith": {"kind": "expression", "params": ["other"], "type": "component_method"},
-    "ImageSprite.Dragged": {"params": ["startX", "startY", "prevX", "prevY", "currentX", "currentY"], "type": "component_event"},
-    "ImageSprite.EdgeReached": {"params": ["edge"], "type": "component_event"},
-    "ImageSprite.Flung": {"params": ["x", "y", "speed", "heading", "xvel", "yvel"], "type": "component_event"},
-    "ImageSprite.MoveIntoBounds": {"kind": "statement", "params": [], "type": "component_method"},
-    "ImageSprite.MoveTo": {"kind": "statement", "params": ["x", "y"], "type": "component_method"},
-    "ImageSprite.NoLongerCollidingWith": {"params": ["other"], "type": "component_event"},
-    "ImageSprite.PointInDirection": {"kind": "statement", "params": ["x", "y"], "type": "component_method"},
-    "ImageSprite.PointTowards": {"kind": "statement", "params": ["target"], "type": "component_method"},
-    "ImageSprite.TouchDown": {"params": ["x", "y"], "type": "component_event"},
-    "ImageSprite.TouchUp": {"params": ["x", "y"], "type": "component_event"},
-    "ImageSprite.Touched": {"params": ["x", "y"], "type": "component_event"},
-    "ListPicker.AfterPicking": {"params": [], "type": "component_event"},
-    "ListPicker.BeforePicking": {"params": [], "type": "component_event"},
-    "ListPicker.GotFocus": {"params": [], "type": "component_event"},
-    "ListPicker.LostFocus": {"params": [], "type": "component_event"},
-    "ListPicker.Open": {"kind": "statement", "params": [], "type": "component_method"},
-    "LocationSensor.LatitudeFromAddress": {"kind": "expression", "params": ["locationName"], "type": "component_method"},
-    "LocationSensor.LocationChanged": {"params": ["latitude", "longitude", "altitude"], "type": "component_event"},
-    "LocationSensor.LongitudeFromAddress": {"kind": "expression", "params": ["locationName"], "type": "component_method"},
-    "LocationSensor.StatusChanged": {"params": ["provider", "status"], "type": "component_event"},
-    "Notifier.AfterChoosing": {"params": ["choice"], "type": "component_event"},
-    "Notifier.AfterTextInput": {"params": ["response"], "type": "component_event"},
-    "Notifier.LogError": {"kind": "statement", "params": ["message"], "type": "component_method"},
-    "Notifier.LogInfo": {"kind": "statement", "params": ["message"], "type": "component_method"},
-    "Notifier.LogWarning": {"kind": "statement", "params": ["message"], "type": "component_method"},
-    "Notifier.ShowAlert": {"kind": "statement", "params": ["notice"], "type": "component_method"},
-    "Notifier.ShowChooseDialog": {"kind": "statement", "params": ["message", "title", "button1Text", "button2Text", "cancelable"], "type": "component_method"},
-    "Notifier.ShowMessageDialog": {"kind": "statement", "params": ["message", "title", "buttonText"], "type": "component_method"},
-    "Notifier.ShowTextDialog": {"kind": "statement", "params": ["message", "title", "cancelable"], "type": "component_method"},
-    "NxtColorSensor.AboveRange": {"params": [], "type": "component_event"},
-    "NxtColorSensor.BelowRange": {"params": [], "type": "component_event"},
-    "NxtColorSensor.ColorChanged": {"params": ["color"], "type": "component_event"},
-    "NxtColorSensor.GetColor": {"kind": "expression", "params": [], "type": "component_method"},
-    "NxtColorSensor.GetLightLevel": {"kind": "expression", "params": [], "type": "component_method"},
-    "NxtColorSensor.WithinRange": {"params": [], "type": "component_event"},
-    "NxtDirectCommands.DeleteFile": {"kind": "statement", "params": ["fileName"], "type": "component_method"},
-    "NxtDirectCommands.DownloadFile": {"kind": "statement", "params": ["source", "destination"], "type": "component_method"},
-    "NxtDirectCommands.GetBatteryLevel": {"kind": "expression", "params": [], "type": "component_method"},
-    "NxtDirectCommands.GetBrickName": {"kind": "expression", "params": [], "type": "component_method"},
-    "NxtDirectCommands.GetCurrentProgramName": {"kind": "expression", "params": [], "type": "component_method"},
-    "NxtDirectCommands.GetFirmwareVersion": {"kind": "expression", "params": [], "type": "component_method"},
-    "NxtDirectCommands.GetInputValues": {"kind": "expression", "params": ["sensorPortLetter"], "type": "component_method"},
-    "NxtDirectCommands.GetOutputState": {"kind": "expression", "params": ["motorPortLetter"], "type": "component_method"},
-    "NxtDirectCommands.KeepAlive": {"kind": "expression", "params": [], "type": "component_method"},
-    "NxtDirectCommands.ListFiles": {"kind": "expression", "params": ["wildcard"], "type": "component_method"},
-    "NxtDirectCommands.LsGetStatus": {"kind": "expression", "params": ["sensorPortLetter"], "type": "component_method"},
-    "NxtDirectCommands.LsRead": {"kind": "expression", "params": ["sensorPortLetter"], "type": "component_method"},
-    "NxtDirectCommands.LsWrite": {"kind": "statement", "params": ["sensorPortLetter", "list", "rxDataLength"], "type": "component_method"},
-    "NxtDirectCommands.MessageRead": {"kind": "expression", "params": ["mailbox"], "type": "component_method"},
-    "NxtDirectCommands.MessageWrite": {"kind": "statement", "params": ["mailbox", "message"], "type": "component_method"},
-    "NxtDirectCommands.PlaySoundFile": {"kind": "statement", "params": ["fileName"], "type": "component_method"},
-    "NxtDirectCommands.PlayTone": {"kind": "statement", "params": ["frequencyHz", "durationMs"], "type": "component_method"},
-    "NxtDirectCommands.ResetInputScaledValue": {"kind": "statement", "params": ["sensorPortLetter"], "type": "component_method"},
-    "NxtDirectCommands.ResetMotorPosition": {"kind": "statement", "params": ["motorPortLetter", "relative"], "type": "component_method"},
-    "NxtDirectCommands.SetBrickName": {"kind": "statement", "params": ["name"], "type": "component_method"},
-    "NxtDirectCommands.SetInputMode": {"kind": "statement", "params": ["sensorPortLetter", "sensorType", "sensorMode"], "type": "component_method"},
-    "NxtDirectCommands.SetOutputState": {"kind": "statement", "params": ["motorPortLetter", "power", "mode", "regulationMode", "turnRatio", "runState", "tachoLimit"], "type": "component_method"},
-    "NxtDirectCommands.StartProgram": {"kind": "statement", "params": ["programName"], "type": "component_method"},
-    "NxtDirectCommands.StopProgram": {"kind": "statement", "params": [], "type": "component_method"},
-    "NxtDirectCommands.StopSoundPlayback": {"kind": "statement", "params": [], "type": "component_method"},
-    "NxtDrive.MoveBackward": {"kind": "statement", "params": ["power", "distance"], "type": "component_method"},
-    "NxtDrive.MoveBackwardIndefinitely": {"kind": "statement", "params": ["power"], "type": "component_method"},
-    "NxtDrive.MoveForward": {"kind": "statement", "params": ["power", "distance"], "type": "component_method"},
-    "NxtDrive.MoveForwardIndefinitely": {"kind": "statement", "params": ["power"], "type": "component_method"},
-    "NxtDrive.Stop": {"kind": "statement", "params": [], "type": "component_method"},
-    "NxtDrive.TurnClockwiseIndefinitely": {"kind": "statement", "params": ["power"], "type": "component_method"},
-    "NxtDrive.TurnCounterClockwiseIndefinitely": {"kind": "statement", "params": ["power"], "type": "component_method"},
-    "NxtLightSensor.AboveRange": {"params": [], "type": "component_event"},
-    "NxtLightSensor.BelowRange": {"params": [], "type": "component_event"},
-    "NxtLightSensor.GetLightLevel": {"kind": "expression", "params": [], "type": "component_method"},
-    "NxtLightSensor.WithinRange": {"params": [], "type": "component_event"},
-    "NxtSoundSensor.AboveRange": {"params": [], "type": "component_event"},
-    "NxtSoundSensor.BelowRange": {"params": [], "type": "component_event"},
-    "NxtSoundSensor.GetSoundLevel": {"kind": "expression", "params": [], "type": "component_method"},
-    "NxtSoundSensor.WithinRange": {"params": [], "type": "component_event"},
-    "NxtTouchSensor.IsPressed": {"kind": "expression", "params": [], "type": "component_method"},
-    "NxtTouchSensor.Pressed": {"params": [], "type": "component_event"},
-    "NxtTouchSensor.Released": {"params": [], "type": "component_event"},
-    "NxtUltrasonicSensor.AboveRange": {"params": [], "type": "component_event"},
-    "NxtUltrasonicSensor.BelowRange": {"params": [], "type": "component_event"},
-    "NxtUltrasonicSensor.GetDistance": {"kind": "expression", "params": [], "type": "component_method"},
-    "NxtUltrasonicSensor.WithinRange": {"params": [], "type": "component_event"},
-    "OrientationSensor.OrientationChanged": {"params": ["azimuth", "pitch", "roll"], "type": "component_event"},
-    "PasswordTextBox.GotFocus": {"params": [], "type": "component_event"},
-    "PasswordTextBox.LostFocus": {"params": [], "type": "component_event"},
-    "Pedometer.CalibrationFailed": {"params": [], "type": "component_event"},
-    "Pedometer.GPSAvailable": {"params": [], "type": "component_event"},
-    "Pedometer.GPSLost": {"params": [], "type": "component_event"},
-    "Pedometer.Pause": {"kind": "statement", "params": [], "type": "component_method"},
-    "Pedometer.Reset": {"kind": "statement", "params": [], "type": "component_method"},
-    "Pedometer.Resume": {"kind": "statement", "params": [], "type": "component_method"},
-    "Pedometer.Save": {"kind": "statement", "params": [], "type": "component_method"},
-    "Pedometer.SimpleStep": {"params": ["simpleSteps", "distance"], "type": "component_event"},
-    "Pedometer.Start": {"kind": "statement", "params": [], "type": "component_method"},
-    "Pedometer.StartedMoving": {"params": [], "type": "component_event"},
-    "Pedometer.Stop": {"kind": "statement", "params": [], "type": "component_method"},
-    "Pedometer.StoppedMoving": {"params": [], "type": "component_event"},
-    "Pedometer.WalkStep": {"params": ["walkSteps", "distance"], "type": "component_event"},
-    "PhoneCall.MakePhoneCall": {"kind": "statement", "params": [], "type": "component_method"},
-    "PhoneNumberPicker.AfterPicking": {"params": [], "type": "component_event"},
-    "PhoneNumberPicker.BeforePicking": {"params": [], "type": "component_event"},
-    "PhoneNumberPicker.GotFocus": {"params": [], "type": "component_event"},
-    "PhoneNumberPicker.LostFocus": {"params": [], "type": "component_event"},
-    "PhoneNumberPicker.Open": {"kind": "statement", "params": [], "type": "component_method"},
-    "PhoneStatus.GetWifiIpAddress": {"kind": "expression", "params": [], "type": "component_method"},
-    "PhoneStatus.isConnected": {"kind": "expression", "params": [], "type": "component_method"},
-    "Player.Completed": {"params": [], "type": "component_event"},
-    "Player.Pause": {"kind": "statement", "params": [], "type": "component_method"},
-    "Player.PlayerError": {"params": ["message"], "type": "component_event"},
-    "Player.Start": {"kind": "statement", "params": [], "type": "component_method"},
-    "Player.Stop": {"kind": "statement", "params": [], "type": "component_method"},
-    "Player.Vibrate": {"kind": "statement", "params": ["milliseconds"], "type": "component_method"},
-    "Screen.BackPressed": {"params": [], "type": "component_event"},
-    "Screen.CloseScreenAnimation": {"kind": "statement", "params": ["animType"], "type": "component_method"},
-    "Screen.ErrorOccurred": {"params": ["component", "functionName", "errorNumber", "message"], "type": "component_event"},
-    "Screen.Initialize": {"params": [], "type": "component_event"},
-    "Screen.OpenScreenAnimation": {"kind": "statement", "params": ["animType"], "type": "component_method"},
-    "Screen.OtherScreenClosed": {"params": ["otherScreenName", "result"], "type": "component_event"},
-    "Screen.ScreenOrientationChanged": {"params": [], "type": "component_event"},
-    "Slider.PositionChanged": {"params": ["thumbPosition"], "type": "component_event"},
-    "Sound.Pause": {"kind": "statement", "params": [], "type": "component_method"},
-    "Sound.Play": {"kind": "statement", "params": [], "type": "component_method"},
-    "Sound.Resume": {"kind": "statement", "params": [], "type": "component_method"},
-    "Sound.SoundError": {"params": ["message"], "type": "component_event"},
-    "Sound.Stop": {"kind": "statement", "params": [], "type": "component_method"},
-    "Sound.Vibrate": {"kind": "statement", "params": ["millisecs"], "type": "component_method"},
-    "SoundRecorder.AfterSoundRecorded": {"params": ["sound"], "type": "component_event"},
-    "SoundRecorder.Start": {"kind": "statement", "params": [], "type": "component_method"},
-    "SoundRecorder.StartedRecording": {"params": [], "type": "component_event"},
-    "SoundRecorder.Stop": {"kind": "statement", "params": [], "type": "component_method"},
-    "SoundRecorder.StoppedRecording": {"params": [], "type": "component_event"},
-    "SpeechRecognizer.AfterGettingText": {"params": ["result"], "type": "component_event"},
-    "SpeechRecognizer.BeforeGettingText": {"params": [], "type": "component_event"},
-    "SpeechRecognizer.GetText": {"kind": "statement", "params": [], "type": "component_method"},
-    "TextBox.GotFocus": {"params": [], "type": "component_event"},
-    "TextBox.HideKeyboard": {"kind": "statement", "params": [], "type": "component_method"},
-    "TextBox.LostFocus": {"params": [], "type": "component_event"},
-    "TextToSpeech.AfterSpeaking": {"params": ["result"], "type": "component_event"},
-    "TextToSpeech.BeforeSpeaking": {"params": [], "type": "component_event"},
-    "TextToSpeech.Speak": {"kind": "statement", "params": ["message"], "type": "component_method"},
-    "Texting.MessageReceived": {"params": ["number", "messageText"], "type": "component_event"},
-    "Texting.SendMessage": {"kind": "statement", "params": [], "type": "component_method"},
-    "TinyDB.GetValue": {"kind": "expression", "params": ["tag"], "type": "component_method"},
-    "TinyDB.StoreValue": {"kind": "statement", "params": ["tag", "valueToStore"], "type": "component_method"},
-    "TinyWebDB.GetValue": {"kind": "statement", "params": ["tag"], "type": "component_method"},
-    "TinyWebDB.GotValue": {"params": ["tagFromWebDB", "valueFromWebDB"], "type": "component_event"},
-    "TinyWebDB.StoreValue": {"kind": "statement", "params": ["tag", "valueToStore"], "type": "component_method"},
-    "TinyWebDB.ValueStored": {"params": [], "type": "component_event"},
-    "TinyWebDB.WebServiceError": {"params": ["message"], "type": "component_event"},
-    "Twitter.Authorize": {"kind": "statement", "params": [], "type": "component_method"},
-    "Twitter.CheckAuthorized": {"kind": "statement", "params": [], "type": "component_method"},
-    "Twitter.DeAuthorize": {"kind": "statement", "params": [], "type": "component_method"},
-    "Twitter.DirectMessage": {"kind": "statement", "params": ["user", "message"], "type": "component_method"},
-    "Twitter.DirectMessagesReceived": {"params": ["messages"], "type": "component_event"},
-    "Twitter.Follow": {"kind": "statement", "params": ["user"], "type": "component_method"},
-    "Twitter.FollowersReceived": {"params": ["followers2"], "type": "component_event"},
-    "Twitter.FriendTimelineReceived": {"params": ["timeline"], "type": "component_event"},
-    "Twitter.IsAuthorized": {"params": [], "type": "component_event"},
-    "Twitter.Login": {"kind": "statement", "params": ["username", "password"], "type": "component_method"},
-    "Twitter.MentionsReceived": {"params": ["mentions"], "type": "component_event"},
-    "Twitter.RequestDirectMessages": {"kind": "statement", "params": [], "type": "component_method"},
-    "Twitter.RequestFollowers": {"kind": "statement", "params": [], "type": "component_method"},
-    "Twitter.RequestFriendTimeline": {"kind": "statement", "params": [], "type": "component_method"},
-    "Twitter.RequestMentions": {"kind": "statement", "params": [], "type": "component_method"},
-    "Twitter.SearchSuccessful": {"params": ["searchResults"], "type": "component_event"},
-    "Twitter.SearchTwitter": {"kind": "statement", "params": ["query"], "type": "component_method"},
-    "Twitter.SetStatus": {"kind": "statement", "params": ["status"], "type": "component_method"},
-    "Twitter.StopFollowing": {"kind": "statement", "params": ["user"], "type": "component_method"},
-    "VideoPlayer.Completed": {"params": [], "type": "component_event"},
-    "VideoPlayer.GetDuration": {"kind": "expression", "params": [], "type": "component_method"},
-    "VideoPlayer.Pause": {"kind": "statement", "params": [], "type": "component_method"},
-    "VideoPlayer.SeekTo": {"kind": "statement", "params": ["ms"], "type": "component_method"},
-    "VideoPlayer.Start": {"kind": "statement", "params": [], "type": "component_method"},
-    "VideoPlayer.VideoPlayerError": {"params": ["message"], "type": "component_event"},
-    "Voting.GotBallot": {"params": [], "type": "component_event"},
-    "Voting.GotBallotConfirmation": {"params": [], "type": "component_event"},
-    "Voting.NoOpenPoll": {"params": [], "type": "component_event"},
-    "Voting.RequestBallot": {"kind": "statement", "params": [], "type": "component_method"},
-    "Voting.SendBallot": {"kind": "statement", "params": [], "type": "component_method"},
-    "Voting.WebServiceError": {"params": ["message"], "type": "component_event"},
-    "Web.BuildRequestData": {"kind": "expression", "params": ["list"], "type": "component_method"},
-    "Web.ClearCookies": {"kind": "statement", "params": [], "type": "component_method"},
-    "Web.Delete": {"kind": "statement", "params": [], "type": "component_method"},
-    "Web.Get": {"kind": "statement", "params": [], "type": "component_method"},
-    "Web.GotFile": {"params": ["url", "responseCode", "responseType", "fileName"], "type": "component_event"},
-    "Web.GotText": {"params": ["url", "responseCode", "responseType", "responseContent"], "type": "component_event"},
-    "Web.HtmlTextDecode": {"kind": "expression", "params": ["htmlText"], "type": "component_method"},
-    "Web.JsonTextDecode": {"kind": "expression", "params": ["jsonText"], "type": "component_method"},
-    "Web.PostFile": {"kind": "statement", "params": ["path"], "type": "component_method"},
-    "Web.PostText": {"kind": "statement", "params": ["text"], "type": "component_method"},
-    "Web.PostTextWithEncoding": {"kind": "statement", "params": ["text", "encoding"], "type": "component_method"},
-    "Web.PutFile": {"kind": "statement", "params": ["path"], "type": "component_method"},
-    "Web.PutText": {"kind": "statement", "params": ["text"], "type": "component_method"},
-    "Web.PutTextWithEncoding": {"kind": "statement", "params": ["text", "encoding"], "type": "component_method"},
-    "Web.UriEncode": {"kind": "expression", "params": ["text"], "type": "component_method"},
-    "WebViewer.CanGoBack": {"kind": "expression", "params": [], "type": "component_method"},
-    "WebViewer.CanGoForward": {"kind": "expression", "params": [], "type": "component_method"},
-    "WebViewer.ClearLocations": {"kind": "statement", "params": [], "type": "component_method"},
-    "WebViewer.GoBack": {"kind": "statement", "params": [], "type": "component_method"},
-    "WebViewer.GoForward": {"kind": "statement", "params": [], "type": "component_method"},
-    "WebViewer.GoHome": {"kind": "statement", "params": [], "type": "component_method"},
-    "WebViewer.GoToUrl": {"kind": "statement", "params": ["url"], "type": "component_method"}
-}"""
-
-''' List of AI2 component names. '''
-AI2_component_names = [ # [2016/08/06, lyn], current list of AI2 componenets, as of today
-    "AccelerometerSensor", 
-    "ActivityStarter", 
-    "Ball", 
-    "BarcodeScanner",
-    "BluetoothClient", 
-    "BluetoothServer",
-    "Button", 
-    "Camcorder", 
-    "Camera", 
-    "Canvas", 
-    "CheckBox", 
-    "Clock", 
-    "ContactPicker", 
-    "DatePicker", 
-    "EmailPicker", 
-    "Ev3Motors", 
-    "Ev3ColorSensor", 
-    "Ev3GyroSensor", 
-    "Ev3TouchSensor", 
-    "Ev3UltrasonicSensor", 
-    "Ev3Sound", 
-    "Ev3UI", 
-    "Ev3Commands", 
-    "File", 
-    "FirebaseDB", 
-    "FusiontablesControl", 
-    "GameClient", 
-    "GyroscopeSensor", 
-    "HorizontalArrangement", 
-    "Image", 
-    "ImagePicker", 
-    "ImageSprite", 
-    "Label", 
-    "ListPicker", 
-    "ListView", 
-    "LocationSensor", 
-    "NearField", 
-    "Notifier", 
-    "NxtColorSensor", 
-    "NxtDirectCommands", 
-    "NxtDrive", 
-    "NxtLightSensor", 
-    "NxtSoundSensor", 
-    "NxtTouchSensor", 
-    "NxtUltrasonicSensor", 
-    "OrientationSensor", 
-    "PasswordTextBox", 
-    "Pedometer", 
-    "PhoneCall", 
-    "PhoneNumberPicker", 
-    "PhoneStatus", 
-    "Player", 
-    "ProximitySensor", 
-    "Screen", 
-    "Slider", 
-    "Sound", 
-    "SoundRecorder", 
-    "SpeechRecognizer", 
-    "Spinner", 
-    "TableArrangement", 
-    "TextBox", 
-    "Texting", 
-    "TextToSpeech", 
-    "TimePicker", 
-    "TinyDB", 
-    "TinyWebDB", 
-    "Twitter", 
-    "VerticalArrangement", 
-    "VerticalScrollArrangement", 
-    "VideoPlayer", 
-    "Voting", 
-    "Web", 
-    "WebViewer",
-    "YandexTranslate"
-]
-
-
+logStartTime = 0 
+logPrefix = 'jail2Audrey'
+printMessagesToConsole = True
 
 def createLogFile():
     global logFileName
+    global logStartTime
     if not os.path.exists("logs"):
         os.mkdir("logs")
-    startTimeString = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")    
+    logStartTime = datetime.datetime.now()
+    startTimeString = logStartTime.strftime("%Y-%m-%d-%H-%M-%S")    
     logFileName = "logs/" + logPrefix + '-' + startTimeString
 
 def logwrite (msg): 
-    with open (logFileName, 'a') as logFile: 
+    with open (logFileName, 'a') as logFile:
+        # [2018/07/12, audrey] add conversion of logStartTime to a datetime.timedelta bc
+        # otherwise python actually complains
+        timeElapsed = datetime.datetime.now() - datetime.timedelta(milliseconds=logStartTime)
+        timedMsg = str(timeElapsed) + ': ' + msg
         if printMessagesToConsole:
-            print(msg) 
-        logFile.write(msg + "\n")
+            print(timedMsg) 
+        logFile.write(timedMsg + "\n")
+
 
 # [2016/08/12, lyn] No longer needed 
 '''
