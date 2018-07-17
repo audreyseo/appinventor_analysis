@@ -75,6 +75,19 @@ def removeIDs(thing, depth=0):
         for e in thing[elseKey]:
             removeIDs(e, depth + 1)
 
+# [2018/07/16] helper function for determining whether
+# a block is a math type or not.
+def isMathType(block):
+    return block['*type'].startswith('math')
+
+# [2018/07/16] helper function for determining whether
+# a block of type math is a function that is commutative
+def isCommutative(mathBlock):
+    if isMathType(mathBlock):
+        commutatives = ['math_multiply', 'math_add']
+        return mathBlock['*type'] in commutatives
+    return False
+
 # [2018/07/13] Tests whether two blocks are equivalent.
 def equivalent(a, b, depth=0):
     ''' a:       the first of the two blocks to be tested
@@ -128,18 +141,29 @@ def equivalent(a, b, depth=0):
             return False
         # Check that the args of a and b are similar
         if argsKey in a and argsKey in b:
-            #print "hey"
-            if len(a[argsKey]) == len(b[argsKey]):
-                for i in range(len(a[argsKey])):
-                    #print a[argsKey][i]
-                    #print b[argsKey][i]
-                    tmp = equivalent(a[argsKey][i], b[argsKey][i], depth+1)
-                    if not tmp:
-                        return False
-                    t = t and tmp
-            else:
+            if isCommutative(a):
+                # then b is a commutative math type also because they have the same type
+                a0 = a[argsKey][0]
+                a1 = a[argsKey][1]
+                b0 = b[argsKey][0]
+                b1 = b[argsKey][1]
+                if equivalent(a0, b0, depth+1):
+                    return equivalent(a1, b1, depth+1)
+                elif equivalent(a0, b1, depth+1):
+                    return equivalent(a1, b0, depth+1)
                 return False
-
+            else:
+                #print "hey"
+                if len(a[argsKey]) == len(b[argsKey]):
+                    for i in range(len(a[argsKey])):
+                        #print a[argsKey][i]
+                        #print b[argsKey][i]
+                        tmp = equivalent(a[argsKey][i], b[argsKey][i], depth+1)
+                        if not tmp:
+                            return False
+                        t = t and tmp
+                else:
+                    return False
         # Check that a and b have similar blocks contained within them
         if childBlocksKey in a and childBlocksKey in b:
             if len(a[childBlocksKey]) == len(b[childBlocksKey]):
@@ -272,16 +296,35 @@ def createDiff(blockA, blockB):
 # [2018/07/13] comparse all of the blocks against each other, while
 # also accounting for never comparing the same pair twice.
 def compareAllBlocks(blocks):
-    seen = []
+    #seen = []
+    ecs = {}
+    def checkNotIn(a, b):
+        if a in ecs:
+            return b not in ecs[a]
+        elif b in ecs:
+            return a not in ecs[b]
+        return True
+    
     for i in range(len(blocks)):
         for j in range(len(blocks)):
-            if equivalent(blocks[i], blocks[j]) and i != j and (i,j) not in seen and (j,i) not in seen:
-                seen.append((i,j))
-                seen.append((j,i))
+            if equivalent(blocks[i], blocks[j]) and i != j and checkNotIn(i, j):
+                #seen.append((i,j))
+                #seen.append((j,i))
+                if i in ecs:
+                    #for k in ecs[i]:
+                    #    ecs[k].append(j)
+                    ecs[i].append(j)
+                else:
+                    ecs[i] = [j]
+                if j in ecs:
+                    #for 
+                    ecs[j].append(i)
+                else:
+                    ecs[j] = [i]
                 print i, j, ":", getName(blocks[i]), getName(blocks[j]) #size(blocks[i]), size(blocks[j])
-            elif (i,j) not in seen and (j,i) not in seen and not equivalent(blocks[i], blocks[j]):
-                seen.append((j,i))
-                seen.append((i,j))
+            elif checkNotIn(i, j) and not equivalent(blocks[i], blocks[j]):
+                #seen.append((j,i))
+                #seen.append((i,j))
                 createDiff(blocks[i], blocks[j])
                 
 
