@@ -12,6 +12,10 @@ import copy
 # [2018/07/13] Use difflib to generate output
 import difflib
 
+import datetime
+
+diffDirectory = ""
+
 dirName = os.path.dirname(os.path.realpath(__file__))
 
 jail = ""
@@ -32,11 +36,54 @@ blocks = copy.deepcopy(code)
 # exact duplicates of each other.
 def allAreUnique(c):
     for i in range(len(c)):
-        for j in range(len(c)):
-            print i, j, c[i] == c[j]
+        for j in range(i+1, len(c)):
             if c[i] == c[j] and i != j:
-                return False
-    return True
+                print i, j, c[i] == c[j]
+#    #return True
+
+def fuzzify(blk, depth=0):
+    childBlockKey = '~bodyStm'
+    argsKey = '~args'
+    branchesKey = "~branches"
+    elseKey = '~branchofelse'
+
+    tagsToRemove = ['id', 'instance_name', 'COMPONENT_SELECTOR', 'x', 'y']
+    genericTags = {'text': ('TEXT', '*generic_text*'),
+                   'logic_boolean': ('BOOL', '*generic_boolean*')}#,
+    #               'math_number': ('NUM', '*generic_number*')}
+    blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
+
+    # [2018/07/18] standardize ordering of arguments
+    if isCommutative(blk):
+        if argsKey in blk:
+            arg1 = copy.deepcopy(blk[argsKey][0])
+            arg2 = copy.deepcopy(blk[argsKey][1])
+            name1 = getName(arg1)
+            name2 = getName(arg2)
+            if len(name1) > len(name2):
+                blk[argsKey][0] = arg2
+                blk[argsKey][1] = arg1
+    
+    #if 'then' in blk:
+    #    for t in blk['then']:
+    #        fuzzify(t, depth+1)
+    if 'test' in blk:
+        fuzzify(blk['test'], depth + 1)
+
+    
+    for tag in tagsToRemove:
+        if tag in blk:
+            blk.pop(tag, 0)
+    for key in blockListKeys:
+        if key in blk:
+            for child in blk[key]:
+                fuzzify(child, depth + 1)
+    for k,v in genericTags.iteritems():
+        if "*type" in blk:
+            if blk['*type'] == k:
+                a = v[0]
+                b = v[1]
+                blk[a] = b
 
 # [2018/07/13] Tries to remove the IDs, as well as other random
 # info that you may/may not want, from a block. This acts on the
@@ -74,11 +121,15 @@ def removeIDs(thing, depth=0):
     if elseKey in thing:
         for e in thing[elseKey]:
             removeIDs(e, depth + 1)
-
 # [2018/07/16] helper function for determining whether
 # a block is a math type or not.
+# [2018/07/18] added a check for whether it's even a
+# block or not
 def isMathType(block):
-    return block['*type'].startswith('math')
+    if isinstance(block, dict):
+        if '*type' in block:
+            return block['*type'].startswith('math')
+    return False
 
 # [2018/07/16] helper function for determining whether
 # a block of type math is a function that is commutative
@@ -181,7 +232,7 @@ def equivalent(a, b, depth=0):
             return True
         return t
     return False
-removeIDs(blocks[0], 0)
+#removeIDs(blocks[0], 0)
 
 # [2018/07/13] Gets the component type of a block. It also accounts for
 # the few cases where screens are called "Form" instead.
@@ -207,32 +258,36 @@ def compareOp(b):
 # math elements have exactly two arguments, and have specific symbols
 # for demonstrating what kind of operation is being done, so math
 # gets its own function for displaying a block's name.
+# [2018/07/18] Accounted for case where a string is somehow passed as
+# a block.
 def renderMathNames(b, depth=0):
     ''' b:     a block in the form of a Python dictionary/object
         depth: optional integer, used more specifically by the function's
                recursive nature to render parentheses around math
                expressions
     '''
-    t = b['*type']
-    argsKey = '~args'
-    args0 = ""
-    args1 = ""
-    begin = "" if depth < 1 else "("
-    end = "" if depth < 1 else ")"
-    if argsKey in b:
-        if len(b[argsKey]) == 2:
-            args0 = b[argsKey][0]
-            args1 = b[argsKey][1]
-    if t == 'math_multiply':
-        return begin + renderMathNames(args0, depth + 1) + " x " + renderMathNames(args1, depth + 1) + end
-    elif t == 'math_number':
-        return b['NUM']
-    elif t == 'math_subtract':
-        return begin + renderMathNames(args0, depth + 1) + " - " + renderMathNames(args1, depth + 1) + end
-    elif t == 'math_compare':
-        return begin + renderMathNames(args0, depth + 1) + " " + compareOp(b) + " " + renderMathNames(args1, depth + 1) + end
-    elif t == 'math_add':
-        return begin + renderMathNames(args0, depth + 1) + " + " + renderMathNames(args1, depth + 1) + end
+    if isMathType(b):
+        #print type(b), "\"" + str(b) + "\""
+        t = b['*type']
+        argsKey = '~args'
+        args0 = ""
+        args1 = ""
+        begin = "" if depth < 1 else "("
+        end = "" if depth < 1 else ")"
+        if argsKey in b:
+            if len(b[argsKey]) == 2:
+                args0 = b[argsKey][0]
+                args1 = b[argsKey][1]
+        if t == 'math_multiply':
+            return begin + renderMathNames(args0, depth + 1) + " x " + renderMathNames(args1, depth + 1) + end
+        elif t == 'math_number':
+            return b['NUM']
+        elif t == 'math_subtract':
+            return begin + renderMathNames(args0, depth + 1) + " - " + renderMathNames(args1, depth + 1) + end
+        elif t == 'math_compare':
+            return begin + renderMathNames(args0, depth + 1) + " " + compareOp(b) + " " + renderMathNames(args1, depth + 1) + end
+        elif t == 'math_add':
+            return begin + renderMathNames(args0, depth + 1) + " + " + renderMathNames(args1, depth + 1) + end
     return getName(b)
 
 # [2018/07/13] Renders the name of a block in a format
@@ -242,22 +297,24 @@ def renderMathNames(b, depth=0):
 # This is the most useful for simply the printed output,
 # because it renders the name nicely.
 def getName(b):
-    t = b['*type']
-    if 'NAME' in b:
-        return b['NAME']
-    elif t == 'component_event':
-        return getComponentType(b) + "$" + b['instance_name'] + "." + b['event_name']
-    elif t == 'component_set' or t == 'component_get':
-        return b['set_or_get'].capitalize() + " " + getComponentType(b) + "$" + b['instance_name'] + "." + b['PROP']
-    elif t == 'logic_boolean':
-        return "bool(" + b['BOOL'] + ")"
-    elif t == 'text':
-        return "text(" + b['TEXT'] + ")"
-    elif t == 'controls_if':
-        return "if " + renderMathNames(b['~branches'][0]['test'])
-    elif t.startswith('math'):
-        return renderMathNames(b)
-    return t
+    if isinstance(b, dict):
+        t = b['*type']
+        if 'NAME' in b:
+            return b['NAME']
+        elif t == 'component_event':
+            return getComponentType(b) + "$" + b['instance_name'] + "." + b['event_name']
+        elif t == 'component_set' or t == 'component_get':
+            return b['set_or_get'].capitalize() + " " + getComponentType(b) + "$" + b['instance_name'] + "." + b['PROP']
+        elif t == 'logic_boolean':
+            return "bool(" + b['BOOL'] + ")"
+        elif t == 'text':
+            return "text(" + b['TEXT'] + ")"
+        elif t == 'controls_if':
+            return "if " + renderMathNames(b['~branches'][0]['test'])
+        elif t.startswith('math'):
+            return renderMathNames(b)
+        return t
+    return str(b)
 
 def size(b):
     childBlocksKey = "~bodyStm"
@@ -267,8 +324,8 @@ def size(b):
             total += size(child)
     return total
         
-equivalent(blocks[16], blocks[15])
-block = blocks[0]
+#equivalent(blocks[16], blocks[15])
+#block = blocks[0]
 
 # [2018/07/16] formats a block specifically for the purposes of using
 # the output with difflib. It returns an array of strings, the lines
@@ -280,24 +337,40 @@ def formatBlock(block):
 
 # [2018/07/16] determines if nonsimilar blocks should have a diff outputed
 # for them, and creates and outputs that diff.
-def createDiff(blockA, blockB):
-    if 'instance_name' in blockA and 'instance_name' in blockB:
-        nameA = getName(blockA)
-        nameB = getName(blockB)
-        stri = formatBlock(blockA)
-        strj = formatBlock(blockB)
-        if len(stri) != 0 and len(strj) != 0:
-            ratio = float(len(stri)) / float(len(strj))
-            if ratio > 0.9 and ratio < 1.1:
-                with open("diffs/" + nameA + "-" + nameB + ".html", "w") as f:
-                    f.write(difflib.HtmlDiff().make_file(stri, strj, nameA, nameB))
-                    f.flush()
+def createDiff(blockA, blockB, nameA=None, nameB=None):
+    if nameA == None:
+        if 'instance_name' in blockA:
+            nameA = getName(blockA)
+    else:
+        nameA = str(nameA)
+    if nameB == None:
+        if  'instance_name' in blockB:
+            nameB = getName(blockB)
+    else:
+        nameB = str(nameB)
+    stri = formatBlock(blockA)
+    strj = formatBlock(blockB)
+    if len(stri) != 0 and len(strj) != 0:
+        ratio = float(len(stri)) / float(len(strj))
+    if ratio > 0.9 and ratio < 1.1:
+        global diffDirectory
+        path = "diff"
+        if diffDirectory == "":
+            diffDirectory = datetime.datetime.now().strftime("%Y-%m-%d::%H:%M:%S")
+            path = os.path.join("diffs", diffDirectory)
+            if not os.path.exists(path):
+                os.makedirs(os.path.join("diffs", diffDirectory))
+            with open(os.path.join(path,  nameA + "-" + nameB + ".html"), "w") as f:
+                f.write(difflib.HtmlDiff().make_file(stri, strj, nameA, nameB))
+                f.flush()
 
 # [2018/07/13] comparse all of the blocks against each other, while
 # also accounting for never comparing the same pair twice.
 def compareAllBlocks(blocks):
     #seen = []
     ecs = {}
+    global diffDirectory
+    diffDirectory = datetime.now().strftime("%Y-%m-%d::%H:%M:%S")
     def checkNotIn(a, b):
         if a in ecs:
             return b not in ecs[a]
@@ -328,7 +401,6 @@ def compareAllBlocks(blocks):
                 createDiff(blocks[i], blocks[j])
                 
 
-compareAllBlocks(blocks)
 
 ''' Wrapper function for testing whether different top blocks contain similar handlers.
 '''
@@ -336,3 +408,16 @@ def compareBlocks(blks, num1, num2):
     return equivalent(blks[num1], blks[num2])
 
 #print compareBlocks(blocks, 17, 18)
+
+#compareAllBlocks(blocks)
+
+
+for b in blocks:
+    fuzzify(b)
+
+allAreUnique(blocks)
+
+
+print compareBlocks(blocks, 15, 16)
+
+createDiff(blocks[15], blocks[16], 15, 16)
