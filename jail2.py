@@ -914,16 +914,16 @@ def addSubBlocks(type, blockDict, statements, values):
   elif type == 'procedures_defreturn': 
     blockDict['~bodyExp'] = getValueBlockNamed('RETURN', values)
   elif type == 'local_declaration_statement': 
-    print 'local_declaration_statement', "before len(blockDict['params'])" #****
+    # print 'local_declaration_statement', "before len(blockDict['params'])" #****
     numDecls = len(blockDict['params'])
     print 'local_declaration_statement', "after len(blockDict['params'])" #****
     declNames = map(lambda index: 'DECL' + str(index), range(0, numDecls))
     blockDict['~*decls'] = map(lambda name: getValueBlockNamed(name, values), declNames) # Use ~*decls so precedes ~body alphabetically
     blockDict['~bodyStm'] = getStatementListNamed('STACK', statements) 
   elif type == 'local_declaration_expression': 
-    print 'local_declaration_expression', "before len(blockDict['params'])" #****
+    # print 'local_declaration_expression', "before len(blockDict['params'])" #****
     numDecls = len(blockDict['params'])
-    print 'local_declaration_expression', "before len(blockDict['params'])" #****
+    # print 'local_declaration_expression', "before len(blockDict['params'])" #****
     declNames = map(lambda index: 'DECL' + str(index), range(0, numDecls))
     blockDict['~*decls'] = map(lambda name: getValueBlockNamed(name, values), declNames) # Use ~*decls so precedes ~body alphabetically
     blockDict['~bodyExp'] = getStatementListNamed('RETURN', values) 
@@ -982,9 +982,9 @@ def componentJSONToComponentDict(jsonFilename):
       methodDict = {} 
       for eventDescription in componentDescription['events']:
         eventName = eventDescription['name']
-        print "before eventDescription['params']"
+        # print "before eventDescription['params']"
         eventParamNames = map(lambda paramDescription: paramDescription['name'], eventDescription['params'])
-        print "after eventDescription['params']"
+        # print "after eventDescription['params']"
         eventDict[eventName] = eventParamNames # only thing we care about for events
       for methodDescription in componentDescription['methods']:
         methodName = methodDescription['name']
@@ -992,9 +992,9 @@ def componentJSONToComponentDict(jsonFilename):
           methodKind = 'expression'
         else: 
           methodKind = 'statement'
-        print "before methodDescription['params']"
+        # print "before methodDescription['params']"
         methodParamNames = map(lambda paramDescription: paramDescription['name'], methodDescription['params'])
-        print "after methodDescription['params']"
+        # print "after methodDescription['params']"
         methodDict[methodName] = {'kind': methodKind, 'params': methodParamNames}
       componentDict[componentName] = {'events': eventDict, 'methods': methodDict}
   return componentDict
@@ -1272,12 +1272,12 @@ def blockDictToArgNames(blockDict):
     if 'is_generic' in blockDict and blockDict['is_generic'] == 'true': 
       argNames.insert(0, 'COMPONENT') # Generic calls have extra COMPONENT ARG
   elif type == 'procedures_callnoreturn' or type == 'procedures_callreturn': # procedure calls
-    print "procedures", "before len(blockDict['params'])" #****
-    print blockDict
+    # print "procedures", "before len(blockDict['params'])" #****
+    # print blockDict
     numParams = 0
     if 'params' in blockDict:
         numParams = len(blockDict['params'])
-    print "procedures", "after len(blockDict['params'])" #****
+    # print "procedures", "after len(blockDict['params'])" #****
     argNames = map(lambda index: 'ARG' + str(index), range(0, numParams))
   elif type in blockTypeDict: 
     entry = blockTypeDict[type]
@@ -1778,4 +1778,5 @@ if __name__=='__main__':
     logFileName = '*unopenedFilename*'
     logPrefix = 'ai2ToJail2Audrey'
     printMessagesToConsole = True
-    allProjectsToJAILFiles('/Users/audrey/Personal/School/College/Work/summer2018/ai2_tutorialfinder/myprojects', numToKeep=None, outputDir="myjails")
+    #allProjectsToJAILFiles('/Users/audrey/Personal/School/College/Work/summer2018/ai2_tutorialfinder/myprojects', numToKeep=None, outputDir="myjails")
+    allProjectsToJAILFiles('/Users/audrey/Downloads/ai2_10k_random_users_deidentified_aias', numToKeep=None, outputDir="10kjails")
