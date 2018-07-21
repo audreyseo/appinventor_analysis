@@ -9,7 +9,7 @@
 # * 2016-11-19: As part of writing FLAIRS paper with Eni & Maja, lyn
 #   adapted most current state of ai2_summarizer to do full JAIL again
 # * 2018-07-11: Audrey brought in more code from ai2summarizer2, and
-#   actually got jail working completely.
+#   actually got jail working (mostly) completely.
 #
 # TODO:
 # As of 2016-11-19:
@@ -38,6 +38,9 @@ Updates:
 * Fixed logwrite and logStartTime so that it shows you the actual difference in
   time, because before it was just showing you today's date/time which was nice
   but not what I was looking for
+* If variable names overlapped with the names of python's builtin functions,
+  I changed the name given to something shortened or otherwise changed, i.e.
+  type => tipe, property => prop, etc.
 
 
 Noted problems:
@@ -491,7 +494,7 @@ def projectToJAILFile(relProjectPath, userDir, outputDir=None):
             os._exit(0)
     except:
         packet = sys.exc_info()[:2]
-        logwrite('***EXCEPTION' + " " + str(packet[0]) + " " + str(packet[1]))
+        logwrite('***EXCEPTION' + " " + str(packet[0]) + " " + str(packet[1]) ",\n possibly in screen " + currentScreenName + " of project " + currentProjectPath)
 
 # Introduced by Lyn. projectPath name might contain a dot, so 
 # 
@@ -723,15 +726,16 @@ def bkyToJAIL(zippedFile, bkyFileName):
 # Only called on XML with tag = 'block'
 # Return a dictionary with all info of block
 # [2018/07/12, audrey] clean up logic/variable names to get rid of bug
+# [2018/07/21, audrey] change variable names to names not taken by python built-ins
 def blockToJAIL(xmlBlock):
   blockDict = {}
   statements = {} # Map statement names to list of statement blocks
   values = {} # Map value names to list of statement blocks
-  for property in xmlBlock.attrib: 
-    if property == 'type': 
+  for prop in xmlBlock.attrib: # [2018/07/21, audrey] rename property to prop, somewhat for proper highlighting
+    if prop == 'type': 
       # rename 'type' to '*type' so type appears at top of blockDict when keys are sorted
       # (makes output easier to read)
-      generalType = xmlBlock.attrib[property]
+      generalType = xmlBlock.attrib[prop]
       blockDict['*type'] = generalType
       specificType = blockType(xmlBlock) # [2015/11/11, lyn] Specially handle component_event, component_method, component_set_get
                                          # E.g., for generalType component_event, might have Button.Click;
@@ -740,8 +744,11 @@ def blockToJAIL(xmlBlock):
                                          # Now also handles "old style" types. E.g. 'DrawingCanvas_Clicked' --> 'Canvas.Clicked'
       if isDeclarationType(generalType, specificType): # declaration = top-level/root block 
         blockDict['kind'] = 'declaration'
+      if blockDict['*type'] not in blockTypeDict:
+          if specificType in AI2_component_specs_nb155:
+              blockDict['kind'] = AI2_component_specs_nb155[specificType]['type']
     else:
-      blockDict[property] = xmlBlock.attrib[property]
+      blockDict[prop] = xmlBlock.attrib[prop]
   # [2018/07/12, audrey] add blkType because apparently this function
   # was looking for some variable "type" that was never actually
   # defined, instantiated, or anything???? So it was actually comparing
@@ -1290,12 +1297,14 @@ def eventParams(blkType):
         logwrite('***eventParams not found for event {} in {}'.format(blkType, currentProjectPath))
         return []
 
-
+# [2018/07/21, audrey] change the parameter from "type" to "tipe"
 def blockTypeToKind(tipe):
-  tipe = upgradeTypeFormat(tipe)
+  #tipe = blockDict['*type']
+  #tipe = blockType(blockDict)
   if tipe in blockTypeDict: 
     return blockTypeDict[tipe]['kind']
-  else: 
+  else:
+    logwrite("Unrecognized block type " + tipe)
     raise RuntimeError('blockTypeToKind: unrecognized type -- ' + tipe)
 
 '''The arg names of a block depends on several factors, including whether it
@@ -1304,21 +1313,23 @@ def blockTypeToKind(tipe):
    Note that this is only used for value sockets and not for statement sockets, 
    and is not used for "special" blocks like if, loops, etc.'''
 def blockDictToArgNames(blockDict):
-  type = blockDict['*type']
-  if type == 'component_method_call_expression' or type == 'component_method_call_statement':
+  tipe = blockDict['*type']
+  if tipe == 'component_method_call_expression' or tipe == 'component_method_call_statement':
     (kind, numArgs) = lookupMethod(blockDict['component_type'], blockDict['method_name'])
     argNames = map(lambda index: 'ARG' + str(index), range(0, numArgs))
     if 'is_generic' in blockDict and blockDict['is_generic'] == 'true': 
       argNames.insert(0, 'COMPONENT') # Generic calls have extra COMPONENT ARG
-  elif type == 'component_get' or type == 'component_set':
-    argNames = blockTypeDict[type]['argNames'][:] # Need to copy via [:] since may mutate and don't want to change original!
+  elif tipe == 'component_method':
+    
+  elif tipe == 'component_get' or tipe == 'component_set':
+    argNames = blockTypeDict[tipe]['argNames'][:] # Need to copy via [:] since may mutate and don't want to change original!
     # print('blockDictToArgNames', 'type=', type, 'argNames=', argNames, 
     #      'is_generic in blockDict=', 'is_generic' in blockDict, 
     #      'blockDict[is_generic]=', blockDict['is_generic'],
     #      "blockDict[is_generic] == 'true'", blockDict['is_generic'] == 'true')
     if 'is_generic' in blockDict and blockDict['is_generic'] == 'true': 
       argNames.insert(0, 'COMPONENT') # Generic calls have extra COMPONENT ARG
-  elif type == 'procedures_callnoreturn' or type == 'procedures_callreturn': # procedure calls
+  elif tipe == 'procedures_callnoreturn' or tipe == 'procedures_callreturn': # procedure calls
     # print "procedures", "before len(blockDict['params'])" #****
     # print blockDict
     numParams = 0
@@ -1326,8 +1337,8 @@ def blockDictToArgNames(blockDict):
         numParams = len(blockDict['params'])
     # print "procedures", "after len(blockDict['params'])" #****
     argNames = map(lambda index: 'ARG' + str(index), range(0, numParams))
-  elif type in blockTypeDict: 
-    entry = blockTypeDict[type]
+  elif tipe in blockTypeDict: 
+    entry = blockTypeDict[tipe]
     if 'argNames' in entry:
       argNames = entry['argNames'][:] # Need to copy via [:] since may mutate and don't want to change original!
     else:
@@ -1339,9 +1350,9 @@ def blockDictToArgNames(blockDict):
         argNames.extend(map(lambda index: expandableName + str(index), range(0, numItems)))
       else:
         raise RuntimeError('blockDictToArgNames: no items for expandable arg ' 
-                           + expandableName + " in block of type " + type)
+                           + expandableName + " in block of type " + tipe)
   else: 
-    raise RuntimeError('blockDictToArgNames: unrecognized type -- ' + type)
+    raise RuntimeError('blockDictToArgNames: unrecognized type -- ' + tipe)
   return argNames
 
 declarationTypes = ['component_event', 'global_declaration', 'procedures_defnoreturn', 
