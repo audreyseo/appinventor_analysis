@@ -42,13 +42,13 @@ Updates:
   I changed the name given to something shortened or otherwise changed, i.e.
   type => tipe, property => prop, etc.
 * Added support for mangled types
+* Added dummy yacode for when yacodeblocks is missing from the XML
 
 
 Noted problems:
 
 * Claims to not recognize type TinyDB1_StoreValue -- which is shouldn't anyway,
   because that isn't a type in the first place, as well as other types
-* Problems from yacodeblocks
 * screen names do not match form names
 * Error with component name comnonent_component lol in
   /Users/audrey/Downloads/ai2_10k_random_users_deidentified_aias/05/05108/p001_001_Stochastik.aia
@@ -714,21 +714,26 @@ def bkyToJAIL(zippedFile, bkyFileName):
       elif child.tag == 'yacodeblocks': 
         if yacodeblocks: # Has already been defined
           raise RuntimeError('bkyToJAIL: More than one yacodeblocks')
-        else: 
+        else:
+          #logwrite("bkyToJAIL yacodeblocks: " + str(child.attrib))
           yacodeblocks = child.attrib
-      else: 
+      else:
         raise RuntimeError('bkyToJAIL: unrecognized tag ' + child.tag)
     if not yacodeblocks:
-      raise RuntimeError('bkyToJAIL: no yacodeblocks!')
+      # [2018/07/21, audrey] raising the error was unproductive so I added a dummy version.
+      yacodeblocks = {'ya-version': str(DUMMY_VERSION), 'language-version': str(DUMMY_VERSION)}
+      #raise RuntimeError('bkyToJAIL: no yacodeblocks!')
+    
+    yaVersion = ""
+    languageVersion = ""
+    if 'ya-version' in yacodeblocks: 
+      yaVersion = yacodeblocks['ya-version']
     else: 
-      if 'ya-version' in yacodeblocks: 
-        yaVersion = yacodeblocks['ya-version']
-      else: 
-        raise RuntimeError('bkyToJAIL: no ya-version')
-      if 'language-version' in yacodeblocks: 
-        languageVersion = yacodeblocks['language-version']
-      else: 
-        raise RuntimeError('bkyToJAIL: no language-version')
+      raise RuntimeError('bkyToJAIL: no ya-version')
+    if 'language-version' in yacodeblocks: 
+      languageVersion = yacodeblocks['language-version']
+    else: 
+      raise RuntimeError('bkyToJAIL: no language-version')
     return {'topBlocks': topBlocks, 'ya-version': yaVersion, 'language-version': languageVersion}
 
 # Only called on XML with tag = 'block'
