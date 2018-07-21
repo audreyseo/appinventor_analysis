@@ -41,6 +41,7 @@ Updates:
 * If variable names overlapped with the names of python's builtin functions,
   I changed the name given to something shortened or otherwise changed, i.e.
   type => tipe, property => prop, etc.
+* Added support for mangled types
 
 
 Noted problems:
@@ -49,6 +50,8 @@ Noted problems:
   because that isn't a type in the first place, as well as other types
 * Problems from yacodeblocks
 * screen names do not match form names
+* Error with component name comnonent_component lol in
+  /Users/audrey/Downloads/ai2_10k_random_users_deidentified_aias/05/05108/p001_001_Stochastik.aia
 
 -------------------------------------------------------------------------------
 018/07/12 (Audrey):
@@ -494,7 +497,12 @@ def projectToJAILFile(relProjectPath, userDir, outputDir=None):
             os._exit(0)
     except:
         packet = sys.exc_info()[:2]
-        logwrite('***EXCEPTION' + " " + str(packet[0]) + " " + str(packet[1]) ",\n possibly in screen " + currentScreenName + " of project " + currentProjectPath)
+        if currentScreenName != None:
+            logwrite('***EXCEPTION' + " " + str(packet[0]) + " " + str(packet[1]) + ",\n possibly in screen " + currentScreenName + " of project " + currentProjectPath)
+        elif currentProjectPath != None:
+            logwrite("***Exception" + " " + str(packet[0]) + " " + str(packet[1]) + " in project " + currentProjectPath)
+        else:
+            logwrite("***EXCEPTION" + " " + str(packet[0]) + " " + str(packet[1]))
 
 # Introduced by Lyn. projectPath name might contain a dot, so 
 # 
@@ -746,7 +754,7 @@ def blockToJAIL(xmlBlock):
         blockDict['kind'] = 'declaration'
       if blockDict['*type'] not in blockTypeDict:
           if specificType in AI2_component_specs_nb155:
-              blockDict['kind'] = AI2_component_specs_nb155[specificType]['type']
+              blockDict['kind'] = AI2_component_specs_nb155[specificType]['kind']
     else:
       blockDict[prop] = xmlBlock.attrib[prop]
   # [2018/07/12, audrey] add blkType because apparently this function
@@ -812,7 +820,8 @@ def blockToJAIL(xmlBlock):
     elif child.tag == 'next':
       kind = determineKind(blockDict)
       if kind != 'statement':
-        raise RuntimeError('blockToJail: next tag found in nonstatement ' + str(xmlBlock))
+        logwrite("blockToJail: kind -- " + kind)
+        raise RuntimeError('blockToJail: next tag found in nonstatement ' + str(getBlockInfo(xmlBlock)))
       else: 
         blockDict['next'] = nextToJAIL(child)
     else: 
@@ -821,6 +830,13 @@ def blockToJAIL(xmlBlock):
   addSubBlocks(blockDict['*type'], blockDict, statements, values)
   return blockDict
 
+
+def getBlockInfo(xmlBlock):
+    '''return a dict string of id, x, y (if available)'''
+    attribs = xmlBlock.attrib
+    return {'id': attribs.get('id', 'NO id'), 
+            'x': attribs.get('x', 'NO x'), 
+            'y': attribs.get('y', 'NO y')}
 
 declarationTypes = ['component_event', 'global_declaration', 'procedures_defnoreturn', 
                     'procedures_defreturn', 'procedures_callnoreturn', 'procedures_callreturn']
@@ -1319,8 +1335,12 @@ def blockDictToArgNames(blockDict):
     argNames = map(lambda index: 'ARG' + str(index), range(0, numArgs))
     if 'is_generic' in blockDict and blockDict['is_generic'] == 'true': 
       argNames.insert(0, 'COMPONENT') # Generic calls have extra COMPONENT ARG
-  elif tipe == 'component_method':
-    
+  elif tipe == 'component_method': # [2018/07/21, audrey] added to handle this
+    params = AI2_component_specs_nb155[blockDict['component_type'] + "." + blockDict['method_name']]['paramNames']
+    argNames = map(lambda index: 'ARG' + str(index), range(0, len(params)))
+    if 'is_generic' in blockDict and blockDict['is_generic'] == 'true':
+      argNames.insert(0, 'COMPONENT')
+    #logwrite("component method: " + str(json.dumps(blockDict, indent=2, separators=(',', ': '))))
   elif tipe == 'component_get' or tipe == 'component_set':
     argNames = blockTypeDict[tipe]['argNames'][:] # Need to copy via [:] since may mutate and don't want to change original!
     # print('blockDictToArgNames', 'type=', type, 'argNames=', argNames, 
@@ -1482,6 +1502,7 @@ def upgradeFormat(tipe):
     return upgradedType
 '''
 
+# [2018/07/21, audrey] Fix to check for mangled types
 def findComponentType(compName): 
     if currentComponentDictionary == {}: 
         populateCurrentComponentDictionary() # Populate dictionary if not already populated. 
@@ -1489,8 +1510,10 @@ def findComponentType(compName):
         return currentComponentDictionary[compName] # Return answer from populated dictionary.
     elif compName in AI2_component_names:
         return compName
+    elif compName in mangledBlockTypesDict:
+        return mangledBlockTypes[compName]
     else:
-        raise Exception("Unable to find component name " + compName 
+        raise Exception("findComponentType: Unable to find component name " + compName 
                         + " for old-style project " + currentProjectPath)
 
 
