@@ -1292,7 +1292,7 @@ def eventParams(blkType):
 
 
 def blockTypeToKind(tipe):
-  tipe = updateTypeFormat(tipe)
+  tipe = upgradeTypeFormat(tipe)
   if tipe in blockTypeDict: 
     return blockTypeDict[tipe]['kind']
   else: 
