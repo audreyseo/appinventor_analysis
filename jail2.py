@@ -17,7 +17,38 @@
 
 ''' History (reverse chronological, comments through 2016/08/13 for ai2_summarizer.py, not jail.py)
 -------------------------------------------------------------------------------
-2018/07/12 (Audrey):
+2018/07/21 (Audrey):
+====================
+I wanted to get the jail files for at least all of the 10k projects, so I
+commented out all of the print statements so that it would hopefully print out
+in a somewhat timely manner.
+
+I also needed to test it on a wider range of .aia files so that I could be sure
+that it was actually fixed. There seems to be some exceptions regarding
+
+* whether currentScreenName is defined
+* the presence of yacodeblocks in the bky.
+
+I think I will need to write a short script so that I can figure out which of
+the files are missing because exceptions occurred during processing.
+
+Updates:
+
+* Added currentScreenName (useful for debugging anyway)
+* Fixed logwrite and logStartTime so that it shows you the actual difference in
+  time, because before it was just showing you today's date/time which was nice
+  but not what I was looking for
+
+
+Noted problems:
+
+* Claims to not recognize type TinyDB1_StoreValue -- which is shouldn't anyway,
+  because that isn't a type in the first place, as well as other types
+* Problems from yacodeblocks
+* screen names do not match form names
+
+-------------------------------------------------------------------------------
+018/07/12 (Audrey):
 ====================
 jail2 brings as many parts of ai2summarizer2 as is possible to adapt in just two days.
 The functions that I've added include
@@ -299,7 +330,8 @@ num_case_mismatches = 0
 
 # *** Added by lyn 
 # print_every = 100
-print_every = 1
+# print_every = 1
+print_every = 1000
 
 # *** Removed by lyn
 '''
@@ -311,6 +343,9 @@ meta_filename = 'META' # 'METADATA' for old files, 'META' for new files
 currentProjectPath = None # Global variable that tracks current project path being processed
 currentScmJSONContents = None # Global variable that tracks contents of .scm file for currentScreen
 currentComponentDictionary = {} # Global variable that contains dictionary mapping component names to component types for current screen
+
+# *** Added by audrey
+currentScreenName = None
 
 def allProjectsToJAILFiles(inputDir, numToKeep=None, outputDir=None):
     '''assumes cwd contains dir, that contains projects (in .aia, .zip, or as dir).
@@ -448,6 +483,12 @@ def projectToJAILFile(relProjectPath, userDir, outputDir=None):
                 outFile.write(json.dumps(jsonProject,
                                          sort_keys=True,
                                          indent=2, separators=(',', ':')))
+    except KeyboardInterrupt:
+        print 'Interrupted'
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
     except:
         packet = sys.exc_info()[:2]
         logwrite('***EXCEPTION' + " " + str(packet[0]) + " " + str(packet[1]))
@@ -579,6 +620,10 @@ def findScreenNames(zippedFile):
     return list(set(screens)) # list(set(...)) removes duplicates 
 
 def screenToJAIL(zippedFile, screenName):
+    # [2018/07/21, audrey] Set currentScreenName properly
+    global currenScreenName
+    currentScreenName = screenName
+    # logwrite("Current screen name: {}".format(currentScreenName))
     scmFileName = screenName + '.scm'
     componentsJAIL = scmToJAIL(zippedFile, scmFileName)
     bkyFileName = screenName + '.bky'
@@ -916,7 +961,7 @@ def addSubBlocks(type, blockDict, statements, values):
   elif type == 'local_declaration_statement': 
     # print 'local_declaration_statement', "before len(blockDict['params'])" #****
     numDecls = len(blockDict['params'])
-    print 'local_declaration_statement', "after len(blockDict['params'])" #****
+    # print 'local_declaration_statement', "after len(blockDict['params'])" #****
     declNames = map(lambda index: 'DECL' + str(index), range(0, numDecls))
     blockDict['~*decls'] = map(lambda name: getValueBlockNamed(name, values), declNames) # Use ~*decls so precedes ~body alphabetically
     blockDict['~bodyStm'] = getStatementListNamed('STACK', statements) 
@@ -1005,6 +1050,7 @@ def componentJSONToComponentDict(jsonFilename):
 # [2018/06/21, audrey] Added to standardize a lot of the logs and generally make code cleaner.
 # [2018/07/12, audrey] Taken from ai2summarizer2, because used in componentTypeToBlockType
 def warningIgnoringMalformedBlock(callingFunctionName, hasMutation, tipe, xmlBlock):
+    global currentScreenName
     logwrite('*WARNING*: {} is ignoring malformed block{} with type {} in screen {} of project {} (block info: {})'.format(callingFunctionName, "" if hasMutation else " (no mutation)", tipe, currentScreenName, currentProjectPath, getBlockInfo(xmlBlock)))
 
 # [2017/03/29, lyn] Factored out this helper function to call it recursively for mangled types
@@ -1245,11 +1291,12 @@ def eventParams(blkType):
         return []
 
 
-def blockTypeToKind(type):
-  if type in blockTypeDict: 
-    return blockTypeDict[type]['kind']
+def blockTypeToKind(tipe):
+  tipe = updateTypeFormat(tipe)
+  if tipe in blockTypeDict: 
+    return blockTypeDict[tipe]['kind']
   else: 
-    raise RuntimeError('blockTypeToKind: unrecognized type -- ' + type)
+    raise RuntimeError('blockTypeToKind: unrecognized type -- ' + tipe)
 
 '''The arg names of a block depends on several factors, including whether it
    has expandable arg names, whether it's a component method call or procedure call,
@@ -1547,7 +1594,7 @@ def cleanup(dirName, fileType):
 # [2018/07/12, audrey] Updated logging using functions from ai2summarizer2,
 # to make it more consistent. Also the time logging feature is very helpful.
 
-logStartTime = 0 
+logStartTime = None
 logPrefix = 'jail2Audrey'
 printMessagesToConsole = True
 
@@ -1556,7 +1603,7 @@ def createLogFile():
     global logStartTime
     if not os.path.exists("logs"):
         os.mkdir("logs")
-    logStartTime = datetime.datetime.now()
+    logStartTime = datetime.datetime.utcnow()
     startTimeString = logStartTime.strftime("%Y-%m-%d-%H-%M-%S")    
     logFileName = "logs/" + logPrefix + '-' + startTimeString
 
@@ -1564,7 +1611,7 @@ def logwrite (msg):
     with open (logFileName, 'a') as logFile:
         # [2018/07/12, audrey] add conversion of logStartTime to a datetime.timedelta bc
         # otherwise python actually complains
-        timeElapsed = datetime.datetime.now() - datetime.timedelta(milliseconds=logStartTime)
+        timeElapsed = datetime.datetime.utcnow() - logStartTime
         timedMsg = str(timeElapsed) + ': ' + msg
         if printMessagesToConsole:
             print(timedMsg) 
@@ -1778,5 +1825,6 @@ if __name__=='__main__':
     logFileName = '*unopenedFilename*'
     logPrefix = 'ai2ToJail2Audrey'
     printMessagesToConsole = True
+    createLogFile()
     #allProjectsToJAILFiles('/Users/audrey/Personal/School/College/Work/summer2018/ai2_tutorialfinder/myprojects', numToKeep=None, outputDir="myjails")
     allProjectsToJAILFiles('/Users/audrey/Downloads/ai2_10k_random_users_deidentified_aias', numToKeep=None, outputDir="10kjails")
