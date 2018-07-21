@@ -52,6 +52,9 @@ Noted problems:
 * screen names do not match form names
 * Error with component name comnonent_component lol in
   /Users/audrey/Downloads/ai2_10k_random_users_deidentified_aias/05/05108/p001_001_Stochastik.aia
+* Unknown method name for some method called DoQuery for FusionTablesControl
+* Unrecognized block type Ball1_setproperty
+* blockTypeToKind: unrecognized mangled component_set_get
 
 -------------------------------------------------------------------------------
 018/07/12 (Audrey):
@@ -757,9 +760,15 @@ def blockToJAIL(xmlBlock):
                                          # Now also handles "old style" types. E.g. 'DrawingCanvas_Clicked' --> 'Canvas.Clicked'
       if isDeclarationType(generalType, specificType): # declaration = top-level/root block 
         blockDict['kind'] = 'declaration'
+      #else:
+      #  logwrite("blockToJAIL: non declaration type {} of specific type {}".format(generalType, specificType))
       if blockDict['*type'] not in blockTypeDict:
-          if specificType in AI2_component_specs_nb155:
-              blockDict['kind'] = AI2_component_specs_nb155[specificType]['kind']
+        if specificType in AI2_component_specs_nb155:
+          if 'kind' in AI2_component_specs_nb155[specificType]:
+            blockDict['kind'] = AI2_component_specs_nb155[specificType]['kind']
+          else:
+            blockDict['kind'] = 'declaration'
+            #raise RuntimeError("blockToJAIL: type {} does not have key \"kind\"".format(specificType))
     else:
       blockDict[prop] = xmlBlock.attrib[prop]
   # [2018/07/12, audrey] add blkType because apparently this function
@@ -851,8 +860,9 @@ nonDeclarationTypes = ['component_method', 'component_set_get']
 # [2016/08/06, lyn] This is new, and correctly handles several cases not handled correctly before:
 # * lexical_variable_get and lexical_variable_set used to be incorrectly treated as top-level declarations.
 # * any "old-style" block, like 'DrawingCanvas_Clicked', 'DrawingCanvas_DrawCircle', or 'StartButton_SetText'
-#   was previously treated as a top-level declaration, but only the first is. 
-def isDeclarationType(generalType, specificType):
+#   was previously treated as a top-level declaration, but only the first is.
+# [2018/07/21, audrey] Removed by Audrey; apparently this got duplicated somehow.
+'''def isDeclarationType(generalType, specificType):
     if generalType in declarationTypes: 
         return True
     elif generalType in nonDeclarationTypes:
@@ -866,7 +876,7 @@ def isDeclarationType(generalType, specificType):
     else: 
         return False # Handles old-style component getters and setters. E.g. 'StartButton_GetText'
                      # as well as generic methods, E.g. Canvas.DrawCircleGeneric
-
+'''
 # From the block type, determine the kind for blockDict 
 # ('expression', 'statement', or 'declaration'), 
 # set the 'kind' property to this value, and return it. 
@@ -881,7 +891,11 @@ def isDeclarationType(generalType, specificType):
 # based on the entry in componentMethodDict, 
 # and in this case also refine the '*type' property to be
 # either 'component_method_call_expression' or 'component_method_call_statement'
-def determineKind(blockDict): 
+def determineKind(blockDict):
+  if blockDict['*type'] in mangledBlockTypesDict:
+      tipe = blockDict['*type']
+      tipe = mangledBlockTypesDict[tipe]
+      blockDict['*type'] = tipe
   if 'kind' in blockDict:
     # Do nothing; already processed. 
     pass
@@ -1322,11 +1336,14 @@ def eventParams(blkType):
 def blockTypeToKind(tipe):
   #tipe = blockDict['*type']
   #tipe = blockType(blockDict)
+  if tipe in mangledBlockTypesDict:
+    tipe = mangledBlockTypesDict[tipe]
   if tipe in blockTypeDict: 
     return blockTypeDict[tipe]['kind']
   else:
-    logwrite("Unrecognized block type " + tipe)
-    raise RuntimeError('blockTypeToKind: unrecognized type -- ' + tipe)
+    logwrite("blockTypeToKind: Unrecognized block type " + tipe)
+    return blockTypeToKind(upgradeTypeFormat(tipe))
+    #    raise RuntimeError('blockTypeToKind: unrecognized type -- ' + tipe)
 
 '''The arg names of a block depends on several factors, including whether it
    has expandable arg names, whether it's a component method call or procedure call,
@@ -1335,6 +1352,19 @@ def blockTypeToKind(tipe):
    and is not used for "special" blocks like if, loops, etc.'''
 def blockDictToArgNames(blockDict):
   tipe = blockDict['*type']
+  if tipe in mangledBlockTypesDict:
+      tipe = mangledBlockTypesDict[tipe]
+      blockDict['*type'] = tipe
+  oldTipe = tipe
+  try:
+      specificType = upgradeTypeFormat(tipe)
+      blockDict['*type'] = AI2_component_specs_nb155[specificType]['type']
+      tipe = blockDict['*type']
+      logwrite("blockDictToArgNames:\n\tspecificType: {}\n\tblockType: {}\n\toldType: {}".format(specificType, tipe, oldTipe))
+  except:
+      tipe = oldTipe
+  #if oldTipe != tipe:
+  #    blockDict['*type'] = tipe
   if tipe == 'component_method_call_expression' or tipe == 'component_method_call_statement':
     (kind, numArgs) = lookupMethod(blockDict['component_type'], blockDict['method_name'])
     argNames = map(lambda index: 'ARG' + str(index), range(0, numArgs))
@@ -1471,12 +1501,18 @@ def blockType(xmlBlock):
 # [2016/08/06, lyn] Modified to handle generic types
 # [2017/03/29, lyn] Modified to handle nonworking cases
 def upgradeTypeFormat(tipe):
-    logwrite("upgradeTypeFormat")
+    if tipe in blockTypeDict:
+        #logwrite('upgradeTypeFormat: found normal type {}'.format(tipe))
+        return tipe
+    #logwrite("upgradeTypeFormat")
     action = tipe.split('_')[-1]
-    logwrite("upgradeTypeFormat: about to attempt to join")
+    #logwrite("upgradeTypeFormat: about to attempt to join")
     compName = '_'.join(tipe.split('_')[:-1]) # Fixed by lyn
-    logwrite("upgradeTypeFormat: after join")
-    compType = findComponentType(compName)
+    #logwrite("upgradeTypeFormat: after join")
+    if compName not in blockTypeDict:
+        compType = findComponentType(compName)
+    else:
+        return tipe
     if compType == None:
         upgradedType = '*IGNORE*'
     else:
