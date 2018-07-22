@@ -50,8 +50,6 @@ Noted problems:
 * Claims to not recognize type TinyDB1_StoreValue -- which is shouldn't anyway,
   because that isn't a type in the first place, as well as other types
 * screen names do not match form names
-* Error with component name comnonent_component lol in
-  /Users/audrey/Downloads/ai2_10k_random_users_deidentified_aias/05/05108/p001_001_Stochastik.aia
 * Unknown method name for some method called DoQuery for FusionTablesControl
 * Unrecognized block type Ball1_setproperty
 * blockTypeToKind: unrecognized mangled component_set_get
@@ -635,7 +633,7 @@ def findScreenNames(zippedFile):
 
 def screenToJAIL(zippedFile, screenName):
     # [2018/07/21, audrey] Set currentScreenName properly
-    global currenScreenName
+    global currentScreenName
     currentScreenName = screenName
     # logwrite("Current screen name: {}".format(currentScreenName))
     scmFileName = screenName + '.scm'
