@@ -412,6 +412,7 @@ screens = potenJail["*Names of Screens"]
 bakeJail = getJail(bakeJailFile)
 bakeScreens = bakeJail["*Names of Screens"]
 print len(bakeScreens)
+print bakeScreens
 screen1Names = [bakeScreens[2], bakeScreens[3], bakeScreens[5]]
 screen2Names = [bakeScreens[4], bakeScreens[6]]
 

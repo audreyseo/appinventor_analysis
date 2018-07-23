@@ -653,13 +653,13 @@ def screenToJAIL(zippedFile, screenName):
     # [2018/07/23, audrey] prevent it from killing everything if they don't match
     # because I want to be able to compare the screens of one project, 09265's bake
     if screenName != formName:
-      logwrite("WARNING (not an error): screenToJail: screen name  \"{}\" does not match formName \"{}\"".format(screenName, formName))
+      logwrite("WARNING (not an error): screenToJail: screen name  \"{}\" does not match formName \"{}\" for project {}".format(screenName, formName, currentProjectPath))
     
     #if screenName == formName: 
     return {"*components": componentsJAIL, "bky":bkyJAIL} # Use *components so it comes first alphabetically
-    #else: 
-    #  raise RuntimeError("screenToJAIL: screenName (" + screenName 
-    #                     + ") does not match formName (" + formName + ")")
+#else: 
+#  raise RuntimeError("screenToJAIL: screenName (" + screenName 
+#                     + ") does not match formName (" + formName + ")")
 
 # [2016/08/05, lyn] Introduced this helper function that returns JSON contents of .scm file
 def scmJSONContents(zippedFile, scmFileName):
