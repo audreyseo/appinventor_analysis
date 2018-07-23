@@ -1353,7 +1353,8 @@ def blockTypeToKind(tipe):
     return blockTypeDict[tipe]['kind']
   else:
     logwrite("blockTypeToKind: Unrecognized block type " + tipe)
-    return blockTypeToKind(upgradeTypeFormat(tipe))
+    # [2018/07/23, audrey] just return this in the case of an unrecognized type
+    return upgradeTypeFormat(tipe)
     #    raise RuntimeError('blockTypeToKind: unrecognized type -- ' + tipe)
 
 '''The arg names of a block depends on several factors, including whether it
