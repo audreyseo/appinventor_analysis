@@ -15,22 +15,13 @@ import difflib
 import datetime
 
 diffDirectory = ""
-
 dirName = os.path.dirname(os.path.realpath(__file__))
 
-jail = ""
-with open(os.path.join(dirName, "myjails/p024_023_potencia_4.jail"), "r") as f:
-    jail = json.load(f)
-
-screens = jail["*Names of Screens"]
-
-#print screens
-
-s = screens[0]
-
-code = jail['screens'][s]['bky']['topBlocks']
-blocks = copy.deepcopy(code)
-
+def getJail(jailLocation):
+    jail = ""
+    with open(os.path.join(dirName, "myjails/p024_023_potencia_4.jail"), "r") as f:
+        jail = json.load(f)
+    return jail
 
 # [2018/07/12] Checks to see if at a minimum, blocks are not
 # exact duplicates of each other.
@@ -412,10 +403,46 @@ def compareBlocks(blks, num1, num2):
 #compareAllBlocks(blocks)
 
 
-for b in blocks:
-    fuzzify(b)
+potenciaJailFile = "myjails/p024_023_potencia_4.jail"
+bakeJailFile = "10kjails/09/09265/p019_019_bake.jail"
 
-allAreUnique(blocks)
+potenJail = getJail(potenciaJailFile)
+screens = potenJail["*Names of Screens"]
+
+bakeJail = getJail(bakeJailFile)
+bakeScreens = bakeJail["*Names of Screens"]
+print len(bakeScreens)
+screen1Names = [bakeScreens[2], bakeScreens[3], bakeScreens[5]]
+screen2Names = [bakeScreens[4], bakeScreens[6]]
+
+screen1s = [jail['screens'][s]['bky']['topBlocks'] for s in screen1Names]
+screen2s = [jail['screens'][s]['bky']['topBlocks'] for s in screen2Names]
+
+def fuzzifyScreens(screens):
+    for blks in screens:
+        for b in blks:
+            fuzzify(b)
+#
+
+fuzzifyScreens(screen1s)
+fuzzifyScreens(screen2s)
+
+for i in range(len(screen1s)):
+    for j in range(i+1, len(screen1s)):
+        print i, j, screen1s[i] == screen1s[j]
+print 0, 1, screen2s[0] == screen2s[1]
+
+#print screens
+
+#s = screens[0]
+
+#code = jail['screens'][s]['bky']['topBlocks']
+#blocks = copy.deepcopy(code)
+
+#for b in blocks:
+#    fuzzify(b)
+
+#allAreUnique(blocks)
 
 
 print compareBlocks(blocks, 15, 16)

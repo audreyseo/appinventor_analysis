@@ -17,6 +17,11 @@
 
 ''' History (reverse chronological, comments through 2016/08/13 for ai2_summarizer.py, not jail.py)
 -------------------------------------------------------------------------------
+2018/07/23 (Audrey):
+====================
+* Stopped it from raising an error whenever the formName doesn't match the screenName
+
+-------------------------------------------------------------------------------
 2018/07/21 (Audrey):
 ====================
 I wanted to get the jail files for at least all of the 10k projects, so I
@@ -631,6 +636,8 @@ def findScreenNames(zippedFile):
             screens.append(name[:-4])
     return list(set(screens)) # list(set(...)) removes duplicates 
 
+# [2018/07/23, audrey] modified to not raise exception and just make a note
+# whenever form name and screen name don't match
 def screenToJAIL(zippedFile, screenName):
     # [2018/07/21, audrey] Set currentScreenName properly
     global currentScreenName
@@ -642,13 +649,19 @@ def screenToJAIL(zippedFile, screenName):
     bkyJAIL = bkyToJAIL(zippedFile, bkyFileName)
     # Verify that screenName matches name of Form (screen)
     formName = componentsJAIL['Properties']['$Name']
-    if screenName == formName: 
-      return {"*components": componentsJAIL, "bky":bkyJAIL} # Use *components so it comes first alphabetically
-    else: 
-      raise RuntimeError("screenToJAIL: screenName (" + screenName 
-                         + ") does not match formName (" + formName + ")")
 
-# [2016/08/05, lyn] Introduced this helper function that returns JSON contents of .scm filex
+    # [2018/07/23, audrey] prevent it from killing everything if they don't match
+    # because I want to be able to compare the screens of one project, 09265's bake
+    if screenName != formName:
+      logwrite("WARNING (not an error): screenToJail: screen name  \"{}\" does not match formName \"{}\"".format(screenName, formName))
+    
+    #if screenName == formName: 
+    return {"*components": componentsJAIL, "bky":bkyJAIL} # Use *components so it comes first alphabetically
+    #else: 
+    #  raise RuntimeError("screenToJAIL: screenName (" + screenName 
+    #                     + ") does not match formName (" + formName + ")")
+
+# [2016/08/05, lyn] Introduced this helper function that returns JSON contents of .scm file
 def scmJSONContents(zippedFile, scmFileName):
     scmLines = linesFromZippedFile(zippedFile, scmFileName)
     if (len(scmLines) == 4
@@ -1063,8 +1076,8 @@ def componentJSONToComponentDict(jsonFilename):
     cmpJson = json.loads(inFile.read())
     for componentDescription in cmpJson: 
       componentName = componentDescription['name']
-      eventDict = {} 
-      methodDict = {} 
+      eventDict = {}
+      methodDict = {}
       for eventDescription in componentDescription['events']:
         eventName = eventDescription['name']
         # print "before eventDescription['params']"
