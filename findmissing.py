@@ -80,7 +80,7 @@ def compareFiles(aiaDir, jailDir):
 
 aia10k = "/Users/audrey/Downloads/ai2_10k_random_users_deidentified_aias"
 jail10k = "/Users/audrey/Personal/School/College/Work/summer2018/jailconversion/10kjails"
-
+'''
 onlyaia = compareDirs(aia10k, jail10k)
 
 
@@ -96,3 +96,4 @@ for f in only:
   print f
 
 print len(only)
+'''

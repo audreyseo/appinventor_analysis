@@ -14,6 +14,8 @@ import difflib
 
 import datetime
 
+from findmissing import *
+
 class EquivalenceClass:
     ''' A data structure that records relationships between different
         projects in a ProjectSet, specifically ones that are all equivalent. '''
@@ -124,9 +126,11 @@ class CodeSet:
 
 
 class ProjectSet:
-    def __init__(self, blocks):
+    def __init__(self, blocks, name=None, programmer=None):
         self.screenClasses = projectEquivClasses(blocks)
-
+        self.projectName = "" if name == None else name
+        self.programmerName = "" if programmer == None else programmer
+        
     def numScreens(self):
         return len(self.screenClasses)
 
@@ -149,8 +153,9 @@ def prettyPrint(obj):
 
 def getJail(jailLocation):
     global dirName
+    path = jailLocation if os.path.isabs(jailLocation) else os.path.join(dirName, jailLocation)
     jail = ""
-    with open(os.path.join(dirName, jailLocation), "r") as f:
+    with open(jailLocation, "r") as f:
         jail = json.load(f)
     return jail
 
@@ -415,6 +420,7 @@ def renderMathNames(b, depth=0):
             return begin + renderMathNames(args0, depth + 1) + " " + compareOp(b) + " " + renderMathNames(args1, depth + 1) + end
         elif t == 'math_add':
             return begin + renderMathNames(args0, depth + 1) + " + " + renderMathNames(args1, depth + 1) + end
+        return t
     return getName(b)
 
 # [2018/07/13] Renders the name of a block in a format
@@ -435,10 +441,11 @@ def getName(b):
         elif t == 'logic_boolean':
             return "bool(" + b['BOOL'] + ")"
         elif t == 'text':
-            return "text(" + b['TEXT'] + ")"
+            return "text(" + str(b['TEXT']) + ")"
         elif t == 'controls_if':
             return "if " + renderMathNames(b['~branches'][0]['test'])
         elif t.startswith('math'):
+            logwrite("getName: {}".format(t))
             return renderMathNames(b)
         return t
     return str(b)
@@ -557,7 +564,51 @@ def projectEquivClasses(projectScreenCode, screenNames=None):
         projClasses[screenNames[i]] = equivalenceClassify(projectScreenCode[i])
     return projClasses
 
-potenciaJailFile = "myjails/p024_023_potencia_4.jail"
+def jailToEquivs(jailLocation):
+    printMessagesEverySoOften = 10000
+    bigDirs = getDirectories(jailLocation)
+    equivs = []
+    num = 0
+    for bigdir in bigDirs:
+        littledirs = getDirectories(os.path.join(jailLocation, bigdir))
+        for littledir in littledirs:
+            files = getFileNames(os.path.join(jailLocation, bigdir, littledir))
+            for f in files:
+                jail = getJail(os.path.join(jailLocation, bigdir, littledir, f))
+                screens = jail['*Names of Screens']
+                code = [jail['screens'][s]['bky']['topBlocks'] for s in screens]
+                equivs.append(ProjectSet(code, f, littledir))
+                num += 1
+                if num % printMessagesEverySoOften == 0:
+                    logwrite(equivs[num-1].numScreens())
+    return equivs
+
+logStartTime = None
+logPrefix = 'jail2Audrey'
+printMessagesToConsole = True
+logFileName = "*WHATEVER*"
+
+def createLogFile():
+    global logFileName
+    global logStartTime
+    if not os.path.exists("logs"):
+        os.mkdir("logs")
+    logStartTime = datetime.datetime.utcnow()
+    startTimeString = logStartTime.strftime("%Y-%m-%d-%H-%M-%S")    
+    logFileName = "logs/" + logPrefix + '-' + startTimeString
+
+def logwrite (msg):
+    global logFileName
+    with open (logFileName, 'a') as logFile:
+        # [2018/07/12, audrey] add conversion of logStartTime to a datetime.timedelta bc
+        # otherwise python actually complains
+        timeElapsed = datetime.datetime.utcnow() - logStartTime
+        timedMsg = str(timeElapsed) + ': ' + msg
+        if printMessagesToConsole:
+            print(timedMsg) 
+        logFile.write(timedMsg + "\n")
+createLogFile()
+'''potenciaJailFile = "myjails/p024_023_potencia_4.jail"
 bakeJailFile = "10kjails/09/09265/p019_019_bake.jail"
 
 potenJail = getJail(potenciaJailFile)
@@ -575,7 +626,9 @@ bakeCode = [bakeJail['screens'][s]['bky']['topBlocks'] for s in bakeScreens]
 
 screen1s = [bakeJail['screens'][s]['bky']['topBlocks'] for s in screen1Names]
 screen2s = [bakeJail['screens'][s]['bky']['topBlocks'] for s in screen2Names]
+'''
 
+equivs = jailToEquivs("10kjails")
 
 #print(screen1s[0])
 
@@ -597,7 +650,7 @@ screen2s = [bakeJail['screens'][s]['bky']['topBlocks'] for s in screen2Names]
 #print 0, 1, equivalent(screen2s[0], screen2s[1]) #screen2s[0] == screen2s[1]
 
 #print screens
-
+'''
 s = screens[0]
 
 code = potenJail['screens'][s]['bky']['topBlocks']
@@ -628,3 +681,4 @@ i = 0
 #    i += 1
 
 
+'''
