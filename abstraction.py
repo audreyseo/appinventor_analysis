@@ -89,9 +89,11 @@ class CodeSet:
 
     def getIndex(self, code):
         if isinstance(code, str):
-            return self.codeDict[str]
+            return self.codeDict[code]
         name = getName(code)
-        return self.codeDict[name]
+        if self.hasKey(name):
+            return self.codeDict[name]
+        return -1
 
     def setIndex(self, code, other):
         name = ""
@@ -101,7 +103,7 @@ class CodeSet:
             name = getName(code)
         if isinstance(other, int):
             self.codeDict[name] = other
-        else:
+        elif self.getIndex(other) != -1:
             self.codeDict[name] = self.getIndex(other)
     
     def addPair(self, codeA, codeB):
@@ -326,15 +328,14 @@ def equivalent(a, b, depth=0):
         if argsKey in a and argsKey in b:
             if isCommutative(a):
                 # then b is a commutative math type also because they have the same type
-                a0 = a[argsKey][0]
-                a1 = a[argsKey][1]
-                b0 = b[argsKey][0]
-                b1 = b[argsKey][1]
-                if equivalent(a0, b0, depth+1):
-                    return equivalent(a1, b1, depth+1)
-                elif equivalent(a0, b1, depth+1):
-                    return equivalent(a1, b0, depth+1)
-                return False
+                if a['items'] != b['items']:
+                    return False
+                aSorted = sorted(a[argsKey])
+                bSorted = sorted(b[argsKey])
+                for i in range(len(a[argsKey])):
+                    if not equivalent(a[argsKey][i], b[argsKey][i]):
+                        return False
+                return True
             else:
                 #print "hey"
                 if len(a[argsKey]) == len(b[argsKey]):
@@ -437,18 +438,24 @@ def getName(b):
         elif t == 'component_event':
             return getComponentType(b) + "$" + b['instance_name'] + "." + b['event_name']
         elif t == 'component_set' or t == 'component_get':
-            return b['set_or_get'].capitalize() + " " + getComponentType(b) + "$" + b['instance_name'] + "." + b['PROP']
+            name = b['set_or_get'].capitalize() + " " + getComponentType(b)
+            if 'instance_name' in b:
+                return name + "$" + b['instance_name'] + "." + b['PROP']
+            elif b['is_generic'] == 'true':
+                return "Generic" + name + "." + b['PROP']
         elif t == 'logic_boolean':
             return "bool(" + b['BOOL'] + ")"
         elif t == 'text':
-            return "text(" + str(b['TEXT']) + ")"
+            if b['TEXT'] == None:
+                return "text()"
+            return "text(" + b['TEXT'].encode('utf-8') + ")"
         elif t == 'controls_if':
             return "if " + renderMathNames(b['~branches'][0]['test'])
         elif t.startswith('math'):
             logwrite("getName: {}".format(t))
             return renderMathNames(b)
         return t
-    return str(b)
+    return b.encode('utf-8')
 
 def size(b):
     childBlocksKey = "~bodyStm"
@@ -576,11 +583,14 @@ def jailToEquivs(jailLocation):
             for f in files:
                 jail = getJail(os.path.join(jailLocation, bigdir, littledir, f))
                 screens = jail['*Names of Screens']
-                code = [jail['screens'][s]['bky']['topBlocks'] for s in screens]
+                code = []
+                for s in screens:
+                    if isinstance(jail['screens'][s]['bky'], dict):
+                        code.append(jail['screens'][s]['bky']['topBlocks'])
                 equivs.append(ProjectSet(code, f, littledir))
                 num += 1
                 if num % printMessagesEverySoOften == 0:
-                    logwrite(equivs[num-1].numScreens())
+                    logwrite(str(num) + " " + str(equivs[num-1].numScreens()))
     return equivs
 
 logStartTime = None
@@ -603,7 +613,7 @@ def logwrite (msg):
         # [2018/07/12, audrey] add conversion of logStartTime to a datetime.timedelta bc
         # otherwise python actually complains
         timeElapsed = datetime.datetime.utcnow() - logStartTime
-        timedMsg = str(timeElapsed) + ': ' + msg
+        timedMsg = str(timeElapsed) + ': ' + str(msg)
         if printMessagesToConsole:
             print(timedMsg) 
         logFile.write(timedMsg + "\n")
