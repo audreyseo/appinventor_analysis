@@ -76,6 +76,9 @@ class CodeSet:
     def numClasses(self):
         return len(self.classes)
 
+    def sizes(self):
+        return [x.size() for x in self.classes]
+    
     def hasKey(self, code):
         if isinstance(code, str):
             return code in self.codeDict
@@ -118,7 +121,27 @@ class CodeSet:
 
     def __str__(self):
         return "[" + ", ".join(map(lambda x: str(x), self.classes)) + "]"
-    
+
+
+class ProjectSet:
+    def __init__(self, blocks):
+        self.screenClasses = projectEquivClasses(blocks)
+
+    def numScreens(self):
+        return len(self.screenClasses)
+
+    def __inRange(self, screenNumber):
+        return not (screenNumber < 0 or screenNumber >= self.numScreens)
+    def numClasses(self, screenNumber):
+        if screenNumber < 0:
+            return -1
+        if screenNumber >= self.numScreens():
+            return -2
+        return self.screenClasses[screenNumber].numClasses()
+
+    def classSizes(self, screenNumber):
+        if self.__inRange(screenNumber):
+            return "{" + ", ".join(map(str, self.screenClasses[screenNumber].sizes())) + "}"
 diffDirectory = ""
 dirName = os.path.dirname(os.path.realpath(__file__))
 def prettyPrint(obj):
@@ -183,6 +206,11 @@ def fuzzify(blk, depth=0):
                 a = v[0]
                 b = v[1]
                 blk[a] = b
+
+def fuzzifyScreens(screens):
+    for blks in screens:
+        for b in blks:
+            fuzzify(b)
 
 # [2018/07/13] Tries to remove the IDs, as well as other random
 # info that you may/may not want, from a block. This acts on the
@@ -493,7 +521,7 @@ def compareAllBlocks(blocks):
                     ecs[j].append(i)
                 else:
                     ecs[j] = [i]
-                print i, j, ":", getName(blocks[i]), getName(blocks[j]) #size(blocks[i]), size(blocks[j])
+                #print i, j, ":", getName(blocks[i]), getName(blocks[j]) #size(blocks[i]), size(blocks[j])
             elif checkNotIn(i, j) and not equivalent(blocks[i], blocks[j]):
                 #seen.append((j,i))
                 #seen.append((i,j))
@@ -517,12 +545,12 @@ def equivalenceClassify(blocks):
     for i in range(size-1):
         for j in range(i + 1, size):
             if equivalent(blocks[i], blocks[j]):
-                print i, j
+                #print i, j
                 blockset.addPair(blocks[i], blocks[j])
     return blockset
 
 def projectEquivClasses(projectScreenCode, screenNames=None):
-    if screenNames != None:
+    if screenNames == None:
         return [equivalenceClassify(code) for code in projectScreenCode]
     projClasses = {}
     for i in range(len(screenNames)):
@@ -548,11 +576,6 @@ bakeCode = [bakeJail['screens'][s]['bky']['topBlocks'] for s in bakeScreens]
 screen1s = [bakeJail['screens'][s]['bky']['topBlocks'] for s in screen1Names]
 screen2s = [bakeJail['screens'][s]['bky']['topBlocks'] for s in screen2Names]
 
-def fuzzifyScreens(screens):
-    for blks in screens:
-        for b in blks:
-            fuzzify(b)
-#
 
 #print(screen1s[0])
 
@@ -592,10 +615,16 @@ blocks = copy.deepcopy(code)
 
 ec = equivalenceClassify(blocks)
 
-bakeECs = [equivalenceClassify(c) for c in bakeCode]
+bakeproj = ProjectSet(bakeCode)
+
+print bakeproj.classSizes(3)
+
+#bakeECs = [equivalenceClassify(c) for c in bakeCode]
 
 print ec
 i = 0
-for equiv in bakeECs:
-    print bakeScreens[i], equiv
-    i += 1
+#for equiv in bakeECs:
+#    print bakeScreens[i], equiv
+#    i += 1
+
+
