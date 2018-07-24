@@ -65,6 +65,9 @@ class EquivalenceClass:
     def __str__(self):
         return "{" + ", ".join(map(lambda x: getName(x), self.members)) + "}"
 
+    def dump(self):
+        return prettyPrint(self.members)
+
 class CodeSet:
     def __init__(self):
         self.classes = []
@@ -118,6 +121,8 @@ class CodeSet:
     
 diffDirectory = ""
 dirName = os.path.dirname(os.path.realpath(__file__))
+def prettyPrint(obj):
+    return json.dumps(obj, indent=2, separators=(',', ': '))
 
 def getJail(jailLocation):
     global dirName
