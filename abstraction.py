@@ -18,8 +18,9 @@ diffDirectory = ""
 dirName = os.path.dirname(os.path.realpath(__file__))
 
 def getJail(jailLocation):
+    global dirName
     jail = ""
-    with open(os.path.join(dirName, "myjails/p024_023_potencia_4.jail"), "r") as f:
+    with open(os.path.join(dirName, jailLocation), "r") as f:
         jail = json.load(f)
     return jail
 
@@ -411,13 +412,14 @@ screens = potenJail["*Names of Screens"]
 
 bakeJail = getJail(bakeJailFile)
 bakeScreens = bakeJail["*Names of Screens"]
+bakeScreens.sort()
 print len(bakeScreens)
 print bakeScreens
-screen1Names = [bakeScreens[2], bakeScreens[3], bakeScreens[5]]
-screen2Names = [bakeScreens[4], bakeScreens[6]]
+screen1Names = [bakeScreens[1], bakeScreens[2], bakeScreens[4]]
+screen2Names = [bakeScreens[3], bakeScreens[5]]
 
-screen1s = [jail['screens'][s]['bky']['topBlocks'] for s in screen1Names]
-screen2s = [jail['screens'][s]['bky']['topBlocks'] for s in screen2Names]
+screen1s = [bakeJail['screens'][s]['bky']['topBlocks'] for s in screen1Names]
+screen2s = [bakeJail['screens'][s]['bky']['topBlocks'] for s in screen2Names]
 
 def fuzzifyScreens(screens):
     for blks in screens:
@@ -425,13 +427,24 @@ def fuzzifyScreens(screens):
             fuzzify(b)
 #
 
+#print(screen1s[0])
+
 fuzzifyScreens(screen1s)
 fuzzifyScreens(screen2s)
 
-for i in range(len(screen1s)):
+for i in range(len(screen1s)-1):
     for j in range(i+1, len(screen1s)):
-        print i, j, screen1s[i] == screen1s[j]
-print 0, 1, screen2s[0] == screen2s[1]
+        tmp = False
+        minScreens = min(len(screen1s[i]), len(screen1s[j]))
+        #if len(screen1s[i]) == len(screen1s[j]):
+        for k in range(minScreens):
+            tmp = tmp or equivalent(screen1s[i][k], screen1s[j][k])
+        #else:
+        if len(screen1s[i]) != len(screen1s[j]):
+            print "Not same size", minScreens
+            #tmp = False
+        print i, j, tmp #equivalent(screen1s[i], screen1s[j]) #screen1s[i] == screen1s[j]
+#print 0, 1, equivalent(screen2s[0], screen2s[1]) #screen2s[0] == screen2s[1]
 
 #print screens
 
@@ -446,6 +459,6 @@ print 0, 1, screen2s[0] == screen2s[1]
 #allAreUnique(blocks)
 
 
-print compareBlocks(blocks, 15, 16)
+#print compareBlocks(blocks, 15, 16)
 
-createDiff(blocks[15], blocks[16], 15, 16)
+#createDiff(blocks[15], blocks[16], 15, 16)
