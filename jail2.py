@@ -1914,4 +1914,5 @@ if __name__=='__main__':
     printMessagesToConsole = True
     createLogFile()
     #allProjectsToJAILFiles('/Users/audrey/Personal/School/College/Work/summer2018/ai2_tutorialfinder/myprojects', numToKeep=None, outputDir="myjails")
-    allProjectsToJAILFiles('/Users/audrey/Downloads/ai2_10k_random_users_deidentified_aias', numToKeep=None, outputDir="10kjails")
+    #allProjectsToJAILFiles('/Users/audrey/Downloads/ai2_10k_random_users_deidentified_aias', numToKeep=None, outputDir="10kjails")
+    allProjectsToJAILFiles("/Users/audrey/Downloads/ai2_46k_prolific_users_deidentified_aias", numToKeep=None, outputDir="46kjails")

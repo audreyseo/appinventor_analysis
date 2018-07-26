@@ -8,3 +8,5 @@ diffs
 10kjails
 logs
 .\#*
+
+*.txt
