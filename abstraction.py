@@ -674,6 +674,28 @@ bakeCode = [bakeJail['screens'][s]['bky']['topBlocks'] for s in bakeScreens]
 screen1s = [bakeJail['screens'][s]['bky']['topBlocks'] for s in screen1Names]
 screen2s = [bakeJail['screens'][s]['bky']['topBlocks'] for s in screen2Names]
 '''
+
+def countSomething(block, func):
+    if not isinstance(block, dict):
+        return 0
+
+    typeKey = '*type'
+    tagsToCheck = ['test', '~bodyExp']
+
+    for tag in tagsToCheck:
+        if tag in block:
+            countSomething(block[tag], func)
+
+    if typeKey in block:
+        # it's a block
+        func(block)
+    blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
+
+    for key in blockListKeys:
+        if key in block:
+            for b in block[key]:
+                countSomething(b, func)
+    
 def countAllBlocks(block):
     if not isinstance(block, dict):
         return 0
