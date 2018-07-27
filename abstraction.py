@@ -755,12 +755,12 @@ def countComponents(blocks):
     return count, genericCount
 
 def iterateOverProjectSets(ps, func):
-    for eq in equivs:
+    for eq in ps:
         for codeset in eq:
             for equivClass in codeset:
                 if equivClass.size() > 0:
                     for blk in equivClass:
-                        func(blk)
+                        func(eq, blk)
 
 if __name__=='__main__':
     equivs = jailToEquivs("10kjails")
