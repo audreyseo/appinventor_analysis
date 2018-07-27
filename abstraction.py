@@ -732,109 +732,109 @@ def countComponents(blocks):
 
     return count, genericCount
 
+if __name__=='__main__':
+    equivs = jailToEquivs("10kjails")
 
-equivs = jailToEquivs("10kjails")
+    allCount = 0
+    compCount = 0
+    topBlocksWithNoComps = 0
+    totalBlocks = 0
+    ind = 0
 
-allCount = 0
-compCount = 0
-topBlocksWithNoComps = 0
-totalBlocks = 0
-ind = 0
+    nonComponentBlockTypes = {}
+    kindsDict = {}
+    numBlocksWithKind = 0
+    numBlocksWithoutKind = 0
+    nonComponentBlockTypesKinds = {}
+    
+    totalNumBlocksBesidesGlobalDecls = 0
+    totalNumCompBlocksWOGlobalDecls = 0
+    
+    declTypeKinds = {}
+    
+    procedureReturns = []
 
-nonComponentBlockTypes = {}
-kindsDict = {}
-numBlocksWithKind = 0
-numBlocksWithoutKind = 0
-nonComponentBlockTypesKinds = {}
-
-totalNumBlocksBesidesGlobalDecls = 0
-totalNumCompBlocksWOGlobalDecls = 0
-
-declTypeKinds = {}
-
-procedureReturns = []
-
-for eq in equivs:
-    for codeset in eq:
-        for equivClass in codeset:
-            if equivClass.size() > 0:
-                for blk in equivClass:
-                    totalBlocks += 1
-                    ind += 1
-                    tmpAll = countAllBlocks(blk)
-                    tmpComp, tmpGeneric = countComponents(blk)
-                    allCount += tmpAll
-                    compCount += tmpComp
-                    if 'kind' in blk:
-                        numBlocksWithKind += 1
-                        k = blk['kind']
-                        tipe = blk['*type']
-                        if tipe == "procedures_defreturn":
-                            procedureReturns.append(eq.projectName + "-" + eq.programmerName)
-                        if k in kindsDict:
-                            kindsDict[k] += 1
-                        else:
-                            kindsDict[k] = 1
-                        if k == "declaration":
-                            totalNumBlocksBesidesGlobalDecls += tmpAll
-                            totalNumCompBlocksWOGlobalDecls += tmpComp
-                            if k in declTypeKinds:
-                                if tipe in declTypeKinds[k]:
-                                    declTypeKinds[k][tipe]['num'] += 1
-                                    declTypeKinds[k][tipe]['all'] += tmpAll
-                                    declTypeKinds[k][tipe]['comp'] += tmpComp
-                                    declTypeKinds[k][tipe]['generic'] += tmpGeneric
+    for eq in equivs:
+        for codeset in eq:
+            for equivClass in codeset:
+                if equivClass.size() > 0:
+                    for blk in equivClass:
+                        totalBlocks += 1
+                        ind += 1
+                        tmpAll = countAllBlocks(blk)
+                        tmpComp, tmpGeneric = countComponents(blk)
+                        allCount += tmpAll
+                        compCount += tmpComp
+                        if 'kind' in blk:
+                            numBlocksWithKind += 1
+                            k = blk['kind']
+                            tipe = blk['*type']
+                            if tipe == "procedures_defreturn":
+                                procedureReturns.append(eq.projectName + "-" + eq.programmerName)
+                            if k in kindsDict:
+                                kindsDict[k] += 1
+                            else:
+                                kindsDict[k] = 1
+                            if k == "declaration":
+                                totalNumBlocksBesidesGlobalDecls += tmpAll
+                                totalNumCompBlocksWOGlobalDecls += tmpComp
+                                if k in declTypeKinds:
+                                    if tipe in declTypeKinds[k]:
+                                        declTypeKinds[k][tipe]['num'] += 1
+                                        declTypeKinds[k][tipe]['all'] += tmpAll
+                                        declTypeKinds[k][tipe]['comp'] += tmpComp
+                                        declTypeKinds[k][tipe]['generic'] += tmpGeneric
+                                    else:
+                                        declTypeKinds[k][tipe] = {}
+                                        declTypeKinds[k][tipe]['num'] = 1
+                                        declTypeKinds[k][tipe]['all'] = tmpAll
+                                        declTypeKinds[k][tipe]['comp'] = tmpComp
+                                        declTypeKinds[k][tipe]['generic'] = tmpGeneric
                                 else:
+                                    declTypeKinds[k] = {}
                                     declTypeKinds[k][tipe] = {}
                                     declTypeKinds[k][tipe]['num'] = 1
                                     declTypeKinds[k][tipe]['all'] = tmpAll
                                     declTypeKinds[k][tipe]['comp'] = tmpComp
                                     declTypeKinds[k][tipe]['generic'] = tmpGeneric
-                            else:
-                                declTypeKinds[k] = {}
-                                declTypeKinds[k][tipe] = {}
-                                declTypeKinds[k][tipe]['num'] = 1
-                                declTypeKinds[k][tipe]['all'] = tmpAll
-                                declTypeKinds[k][tipe]['comp'] = tmpComp
-                                declTypeKinds[k][tipe]['generic'] = tmpGeneric
-                    else:
-                        numComponentBlocksWithoutKind+=1
+                        else:
+                            numComponentBlocksWithoutKind+=1
 
-                    tipe = blk['*type']
-                    if (tmpComp == 0 and tmpAll != 0) or (tipe == "component_event" and tmpComp == 1):
-                        k = blk['kind']
+                        tipe = blk['*type']
+                        if (tmpComp == 0 and tmpAll != 0) or (tipe == "component_event" and tmpComp == 1):
+                            k = blk['kind']
                         
-                        if tipe not in nonComponentBlockTypes:
-                            nonComponentBlockTypes[tipe] = 1
-                        else:
-                            nonComponentBlockTypes[tipe] += 1
-                        if k in nonComponentBlockTypesKinds:
-                            if tipe in nonComponentBlockTypesKinds[k]:
-                                nonComponentBlockTypesKinds[k][tipe] += 1
+                            if tipe not in nonComponentBlockTypes:
+                                nonComponentBlockTypes[tipe] = 1
                             else:
+                                nonComponentBlockTypes[tipe] += 1
+                            if k in nonComponentBlockTypesKinds:
+                                if tipe in nonComponentBlockTypesKinds[k]:
+                                    nonComponentBlockTypesKinds[k][tipe] += 1
+                                else:
+                                    nonComponentBlockTypesKinds[k][tipe] = 1
+                            else:
+                                nonComponentBlockTypesKinds[k] = {}
                                 nonComponentBlockTypesKinds[k][tipe] = 1
-                        else:
-                            nonComponentBlockTypesKinds[k] = {}
-                            nonComponentBlockTypesKinds[k][tipe] = 1
-                        topBlocksWithNoComps += 1
-                        #print "Project " + eq.projectName + " by " + eq.programmerName + " has no component blocks"
-                    if ind % 1000 == 0:
-                        print allCount, compCount
+                                topBlocksWithNoComps += 1
+                                #print "Project " + eq.projectName + " by " + eq.programmerName + " has no component blocks"
+                        if ind % 1000 == 0:
+                            print allCount, compCount
 
-print compCount, allCount, topBlocksWithNoComps, totalBlocks, numBlocksWithKind
-print totalNumBlocksBesidesGlobalDecls, totalNumCompBlocksWOGlobalDecls
+    print compCount, allCount, topBlocksWithNoComps, totalBlocks, numBlocksWithKind
+    print totalNumBlocksBesidesGlobalDecls, totalNumCompBlocksWOGlobalDecls
 
-print prettyPrint(nonComponentBlockTypes)
-print prettyPrint(kindsDict)
-print prettyPrint(nonComponentBlockTypesKinds)
+    print prettyPrint(nonComponentBlockTypes)
+    print prettyPrint(kindsDict)
+    print prettyPrint(nonComponentBlockTypesKinds)
 
-with open("declarationtypesdict.txt", "w") as f:
-    f.write(prettyPrint(declTypeKinds))
-    f.flush()
+    with open("declarationtypesdict.txt", "w") as f:
+        f.write(prettyPrint(declTypeKinds))
+        f.flush()
 
-with open("procedurenames.txt", "w") as f:
-    f.write('\n'.join(procedureReturns))
-    f.flush()
+    with open("procedurenames.txt", "w") as f:
+        f.write('\n'.join(procedureReturns))
+        f.flush()
 
 #print(screen1s[0])
 
