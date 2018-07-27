@@ -152,7 +152,7 @@ class CodeSet:
 
 
 class ProjectSet:
-  def __init__(self, blocks, name=None, programmer=None):
+  def __init__(self, blocks, screenNames=None, name=None, programmer=None):
     self.screenClasses = projectEquivClasses(blocks)
     self.projectName = "" if name == None else name
     self.programmerName = "" if programmer == None else programmer

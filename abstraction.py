@@ -18,6 +18,7 @@ from equivalenceclasses import *
 from myutils import *
 from findmissing import *
 
+import zipUtils as zu
 
 diffDirectory = ""
 dirName = os.path.dirname(os.path.realpath(__file__))
@@ -56,16 +57,10 @@ def fuzzify(blk, depth=0):
                 blk[argsKey][0] = arg2
                 blk[argsKey][1] = arg1
     
-    #if 'then' in blk:
-    #    for t in blk['then']:
-    #        fuzzify(t, depth+1)
     for tag in tagsToCheck:
         if tag in blk:
             fuzzify(blk[tag], depth + 1)
-    #if 'test' in blk:
-    #    fuzzify(blk['test'], depth + 1)
-
-    
+     
     for tag in tagsToRemove:
         if tag in blk:
             blk.pop(tag, 0)
@@ -84,13 +79,6 @@ def fuzzifyScreens(screens):
     for blks in screens:
         for b in blks:
             fuzzify(b)
-
-
-
-
-        
-#equivalent(blocks[16], blocks[15])
-#block = blocks[0]
 
 # [2018/07/16] formats a block specifically for the purposes of using
 # the output with difflib. It returns an array of strings, the lines
@@ -129,56 +117,64 @@ def createDiff(blockA, blockB, nameA=None, nameB=None):
                 f.write(difflib.HtmlDiff().make_file(stri, strj, nameA, nameB))
                 f.flush()
 
-                
-
-
-
-#print compareBlocks(blocks, 17, 18)
-
-#compareAllBlocks(blocks)
-
-
 def jailToEquivs(jailLocation):
     printMessagesEverySoOften = 10000
     bigDirs = getDirectories(jailLocation)
     equivs = []
-    num = 0
-    for bigdir in bigDirs:
-        littledirs = getDirectories(os.path.join(jailLocation, bigdir))
-        for littledir in littledirs:
-            files = getFileNames(os.path.join(jailLocation, bigdir, littledir))
-            for f in files:
-                jail = getJail(os.path.join(jailLocation, bigdir, littledir, f))
-                screens = jail['*Names of Screens']
-                code = []
-                for s in screens:
-                    if isinstance(jail['screens'][s]['bky'], dict):
-                        code.append(jail['screens'][s]['bky']['topBlocks'])
-                equivs.append(ProjectSet(code, f, littledir))
-                num += 1
-                if num % printMessagesEverySoOften == 0:
-                    logwrite(str(num) + " " + str(equivs[num-1].numScreens()))
+    class MyNum:
+        num = 0
+    #num = 0
+
+    def unarchivedFiles(usersDir, userID, projName):
+        jail = getJail(os.path.join(jailLocation, usersDir, userID, projName))
+        equivify(jail, usersDir, userID, projName)
+
+    def archivedFiles(fileName, fileArchive):
+        jail = json.load(fileArchive)
+        splits = fileName.split("/")
+        equivify(jail, "", splits[0], splits[1])
+        
+    def equivify(jail, usersDir, userID, projName):
+        screenNames = jail['*Names of Screens']
+        onlyUsedNames = []
+        code = []
+        for name in screenNames:
+            screenCode = jail['screens'][name]['bky']
+            if isinstance(screenCode, dict):
+                blks = screenCode['topBlocks']
+                blks = [b for b in blks if 'kind' in b and b['kind'] == 'declaration']
+                if len(blks) != 0:
+                    code.append(blks)
+                    onlyUsedNames.append(name)
+        #             screen names --> vvvvvvvvvvvvv
+        equivs.append(ProjectSet(code, onlyUsedNames, projName, userID))
+        #                                     the user's id --> ^^^^^^^
+        MyNum.num += 1
+        if MyNum.num % printMessagesEverySoOften == 0:
+            logwrite("equivify() in jailToEquivs()::" + str(MyNum.num) + ": " + os.path.join(usersDir, userID, projName))
+    if len(bigDirs) == 0:
+        files = getFileNames(jailLocation)
+        for f in files:
+            zu.withUnzippedFiles(os.path.join(jailLocation, f), archivedFiles)
+    else:
+        for bigdir in bigDirs:
+            littledirs = getDirectories(os.path.join(jailLocation, bigdir))
+            for littledir in littledirs:
+                files = getFileNames(os.path.join(jailLocation, bigdir, littledir))
+                for f in files:
+                    unarchivedFiles(bigdir, littledir, f)
+                    '''jail = getJail(os.path.join(jailLocation, bigdir, littledir, f))
+                    screens = jail['*Names of Screens']
+                    code = []
+                    for s in screens:
+                        if isinstance(jail['screens'][s]['bky'], dict):
+                            code.append(jail['screens'][s]['bky']['topBlocks'])
+                    equivs.append(ProjectSet(code, f, littledir))
+                    num += 1
+                    if num % printMessagesEverySoOften == 0:
+                        logwrite(str(num) + " " + str(equivs[num-1].numScreens()))'''
     return equivs
 
-'''potenciaJailFile = "myjails/p024_023_potencia_4.jail"
-bakeJailFile = "10kjails/09/09265/p019_019_bake.jail"
-
-potenJail = getJail(potenciaJailFile)
-screens = potenJail["*Names of Screens"]
-
-bakeJail = getJail(bakeJailFile)
-bakeScreens = bakeJail["*Names of Screens"]
-bakeScreens.sort()
-print len(bakeScreens)
-print bakeScreens
-screen1Names = [bakeScreens[1], bakeScreens[2], bakeScreens[4]]
-screen2Names = [bakeScreens[3], bakeScreens[5]]
-
-bakeCode = [bakeJail['screens'][s]['bky']['topBlocks'] for s in bakeScreens]
-
-screen1s = [bakeJail['screens'][s]['bky']['topBlocks'] for s in screen1Names]
-screen2s = [bakeJail['screens'][s]['bky']['topBlocks'] for s in screen2Names]
-'''
 
 def countSomething(block, func):
     if not isinstance(block, dict):
@@ -267,9 +263,20 @@ def iterateOverProjectSets(ps, func):
                     for blk in equivClass:
                         func(eq, blk)
 
+#def zipFileProcessFunction(archFileName, archFile):
+#    logwrite(archFileName)
+
+#def getEquivsFromZips(location):
+#    zipFileNames = getFileNames(location)
+#    for zf in zipFileNames:
+#        zu.withUnzippedFiles(os.path.join("46kjailzips", zf), zipFileProcessor)                    
 if __name__=='__main__':
     createLogFile()
-    equivs = jailToEquivs("10kjails")
+    loc10k = "10kjails"
+    loc46k = "46kjailzips"
+
+    jailToEquivs(loc46k)
+'''    equivs = jailToEquivs("10kjails")
 
     allCount = 0
     compCount = 0
@@ -371,56 +378,4 @@ if __name__=='__main__':
     with open("procedurenames.txt", "w") as f:
         f.write('\n'.join(procedureReturns))
         f.flush()
-
-#print(screen1s[0])
-
-#fuzzifyScreens(screen1s)
-#fuzzifyScreens(screen2s)
-
-'''for i in range(len(screen1s)-1):
-    for j in range(i+1, len(screen1s)):
-        tmp = False
-        minScreens = min(len(screen1s[i]), len(screen1s[j]))
-        #if len(screen1s[i]) == len(screen1s[j]):
-        for k in range(minScreens):
-            tmp = tmp or equivalent(screen1s[i][k], screen1s[j][k])
-        #else:
-        if len(screen1s[i]) != len(screen1s[j]):
-            print "Not same size", minScreens
-            #tmp = False
-        print i, j, tmp #equivalent(screen1s[i], screen1s[j]) #screen1s[i] == screen1s[j]'''
-#print 0, 1, equivalent(screen2s[0], screen2s[1]) #screen2s[0] == screen2s[1]
-
-#print screens
-'''
-s = screens[0]
-
-code = potenJail['screens'][s]['bky']['topBlocks']
-blocks = copy.deepcopy(code)
-
-#for b in blocks:
-#    fuzzify(b)
-
-#allAreUnique(blocks)
-
-
-#print compareBlocks(blocks, 15, 16)
-
-#createDiff(blocks[15], blocks[16], 15, 16)
-
-ec = equivalenceClassify(blocks)
-
-bakeproj = ProjectSet(bakeCode)
-
-print bakeproj.classSizes(3)
-
-#bakeECs = [equivalenceClassify(c) for c in bakeCode]
-
-print ec
-i = 0
-#for equiv in bakeECs:
-#    print bakeScreens[i], equiv
-#    i += 1
-
-
 '''

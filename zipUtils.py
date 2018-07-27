@@ -91,7 +91,3 @@ def printFile(name, file):
 
 withUnzippedFiles('../data/ai2_46K_prolific_users_deidentified_summary2s_test.zip', printFile)
 '''
-
-
-
-
