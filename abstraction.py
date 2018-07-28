@@ -275,7 +275,8 @@ if __name__=='__main__':
     loc10k = "10kjails"
     loc46k = "46kjailzips"
 
-    jailToEquivs(loc46k)
+    #jailToEquivs(loc46k)
+    jailToEquivs(loc10k)
 '''    equivs = jailToEquivs("10kjails")
 
     allCount = 0

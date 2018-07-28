@@ -6,7 +6,8 @@
 '''
 
 import os
-
+import zipUtils as zu
+import myutils as mu
 
 def getDirectories(direct):
   tmp = os.listdir(direct)
@@ -65,31 +66,57 @@ def stripExtension(files):
   return [os.path.splitext(f)[0] for f in files]
 
 def compareFiles(aiaDir, jailDir):
+  jailDirs = getDirectories(jailDir)
   aiaFiles = stripExtension(getFileNames(aiaDir))
-  jailFiles = stripExtension(getFileNames(jailDir))
-  print len(aiaFiles)
-  print len(jailFiles)
   aiaFilesOnly = []
-
+  jailFiles = []
+  if len(jailDirs) > 0:
+    jailFiles = stripExtension(getFileNames(jailDir))
+  else:
+    jailZips = os.listdir(jailDir)
+    jailZips = [z for z in jailZips if z.endswith(".zip")]
+    class Local:
+      index = 0
+      currentJail = ""
+    def loopThroughJAILs(fileName, archiveName):
+      usersDir = os.path.splitext(Local.currentJail)[0]
+      jailName = os.path.join(usersDir, fileName)
+      #jailName = os.path.splitext(jailName)[0]
+      jailFiles.append(jailName)
+    for z in jailZips:
+      Local.currentJail = z
+      zu.withUnzippedFiles(os.path.join(jailDir, z), loopThroughJAILs)
+    jailFiles = stripExtension(jailFiles)
+  mu.logwrite("compareFiles:: #aias: " + str(len(aiaFiles)))
+  mu.logwrite("compareFiles:: #aias: " + str(len(jailFiles)))
   for aia in aiaFiles:
     if aia not in jailFiles:
       aiaFilesOnly.append(aia)
-
   return aiaFilesOnly
 
 
 if __name__=='__main__':
+  mu.logFileName = "*whatever*"
+  mu.createLogFile()
   aia10k = "/Users/audrey/Downloads/ai2_10k_random_users_deidentified_aias"
   jail10k = "/Users/audrey/Personal/School/College/Work/summer2018/jailconversion/10kjails"
-  onlyaia = compareDirs(aia10k, jail10k)
-  for d in onlyaia:
-    print d
 
-  print(len(onlyaia))
+  #onlyaia = compareDirs(aia10k, jail10k)
+  #for d in onlyaia:
+  #  print d
+
+  #print(len(onlyaia))
 
   only = compareFiles(aia10k, jail10k)
 
-  for f in only:
-    print f
+  #for f in only:
+  #  print f
 
-  print len(only)
+  mu.logwrite("main:: # of files missing: " + str(len(only)))
+
+  aia46k = "/Users/audrey/Downloads/ai2_46k_prolific_users_deidentified_aias"
+  jail46kzipped = "/Users/audrey/Personal/School/College/Work/summer2018/jailconversion/46kjailzips"
+  
+  only46k = compareFiles(aia46k, jail46kzipped)
+
+  mu.logwrite("main:: # of 46k files missing: " + str(len(only46k)))
