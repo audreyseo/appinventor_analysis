@@ -1,23 +1,23 @@
 from myutils import *
 
 def equivalenceClassify(blocks, screenName=None):
-    size = len(blocks)
-    blockset = CodeSet(screenName)
+  size = len(blocks)
+  blockset = CodeSet(screenName)
 
-    for i in range(size-1):
-        for j in range(i + 1, size):
-            if equivalent(blocks[i], blocks[j]):
-                #print i, j
-                blockset.addPair(blocks[i], blocks[j])
-    return blockset
+  for i in range(size-1):
+    for j in range(i + 1, size):
+      if equivalent(blocks[i], blocks[j]):
+        #print i, j
+        blockset.addPair(blocks[i], blocks[j])
+  return blockset
 
 def projectEquivClasses(projectScreenCode, screenNames=None):
-    if screenNames == None:
-        return [equivalenceClassify(code) for code in projectScreenCode]
-    projClasses = []
-    for i in range(len(screenNames)):
-        projClasses.append(equivalenceClassify(projectScreenCode[i], screenNames[i]))
-    return projClasses
+  if screenNames == None:
+    return [equivalenceClassify(code) for code in projectScreenCode]
+  projClasses = []
+  for i in range(len(screenNames)):
+    projClasses.append(equivalenceClassify(projectScreenCode[i], screenNames[i]))
+  return projClasses
 
 
 class EquivalenceClass:
@@ -29,7 +29,7 @@ class EquivalenceClass:
     '''
     self.members = [a, b]
     self.screen = screen or ""
-
+  
   def inClass(self, a, b):
     ''' a: an object where a is deemed equivalent to the other object b
         b: an object where b is deemed equivalent to the other object a
@@ -42,7 +42,7 @@ class EquivalenceClass:
   def add(self, newObject):
     if newObject not in self.members:
       self.members.append(newObject)
-      
+
   def addPair(self, a, b):
     if not self.isAMember(a):
       self.add(a)
@@ -75,10 +75,23 @@ class EquivalenceClass:
   def dump(self):
     return prettyPrint(self.members)
 
+  def findComponentCorrespondence(self):
+    self.corrmatrix = []
+    for i in range(self.size()):
+      self.corrmatrix.append([])
+      for j in range(i):
+        self.corrmatrix[i].append(0)
+      for j in range(i, self.size()):
+        self.corrmatrix[i].append(numCompBlocksInCommon(self.members[i], self.members[j]))
+
+  def showCorrespondence(self):
+    for i in range(len(self.corrmatrix)):
+      print " ".join(map(lambda x: str(x).ljust(4), self.corrmatrix[i]))
+                     
   def __iter__(self):
     self.index = -1
     return self
-  
+
   def next(self):
     if self.index == self.size() - 1:
       raise StopIteration

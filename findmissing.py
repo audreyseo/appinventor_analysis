@@ -130,7 +130,7 @@ if __name__=='__main__':
 
   mu.logwrite("main:: # of files missing: " + str(len(only)))
 
-  '''aia46k = "/Users/audrey/Downloads/ai2_46k_prolific_users_deidentified_aias"
+  aia46k = "/Users/audrey/Downloads/ai2_46k_prolific_users_deidentified_aias"
   jail46kzipped = "/Users/audrey/Personal/School/College/Work/summer2018/jailconversion/46kjailzips"
   
   only46k = compareFiles(aia46k, jail46kzipped)
@@ -138,4 +138,4 @@ if __name__=='__main__':
   mu.logwrite("main:: # of 46k files missing: " + str(len(only46k)))
 
   with open("46kaiamissings.txt", "w") as f:
-    f.write("\n".join(only46k))'''
+    f.write("\n".join(only46k))

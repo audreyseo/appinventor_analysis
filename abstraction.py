@@ -202,13 +202,13 @@ def isDisabled(block):
     if "disabled" in block:
         return block["disabled"] == "true"
     return False
-
+                    
 def countAllBlocks(block):
     global tagsSeen
     if not isinstance(block, dict):
         return 0
     if isDisabled(block):
-        logwrite("countAllBlocks:: block " + getName(block) + " is disabled.")
+        #logwrite("countAllBlocks:: block " + getName(block) + " is disabled.")
         return 0
     count = 0
     typeKey = '*type'
@@ -240,7 +240,7 @@ def countComponents(blocks):
     if not isinstance(blocks, dict):
         return 0, 0
     if isDisabled(blocks):
-        logwrite("countComponents:: block " + getName(blocks) + " is disabled.")
+        #logwrite("countComponents:: block " + getName(blocks) + " is disabled.")
         return 0, 0
     count = 0
     genericCount = 0
@@ -330,6 +330,7 @@ if __name__=='__main__':
     for eq in equivs:
         for codeset in eq:
             for equivClass in codeset:
+                equivClass.findComponentCorrespondence()
                 if equivClass.size() > 0:
                     for blk in equivClass:
                         totalBlocks += 1
@@ -355,8 +356,9 @@ if __name__=='__main__':
                                               "screen": codeset.screenName,
                                               "programmer": eq.programmerName,
                                               "project": eq.projectName,
-                                              "numBlocks": tmpAll,
-                                              "numCompBlocks": tmpComp
+                                              "numBlocks": str(tmpAll),
+                                              "numCompBlocks": str(tmpComp),
+                                              "numDupes": equivClass.size()
                                 })
                                 totalNumBlocksBesidesGlobalDecls += tmpAll
                                 totalNumCompBlocksWOGlobalDecls += tmpComp
@@ -401,7 +403,9 @@ if __name__=='__main__':
                             topBlocksWithNoComps += 1
                             #print "Project " + eq.projectName + " by " + eq.programmerName + " has no component blocks"
                         if ind % 1000 == 0:
-                            print allCount, compCount
+                            logwrite("all, comp: " + str(allCount) + ", " + str(compCount))
+                            equivClass.showCorrespondence()
+                            
 
     print compCount, allCount, topBlocksWithNoComps, totalBlocks, numBlocksWithKind
     print totalNumBlocksBesidesGlobalDecls, totalNumCompBlocksWOGlobalDecls
@@ -418,6 +422,9 @@ if __name__=='__main__':
         f.write('\n'.join(procedureReturns))
         f.flush()
 
-    with open("declfacts.txt", "w") as f:
-        f.write(prettyPrint(decls))
+    cols = ["type", "kind", "name", "screen", "programmer", "project", "numBlocks", "numCompBlocks", "numDupes"]
+    with open("declfacts.csv", "w") as f:
+        declCSVLines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in decls])
+        f.write(",".join(cols))
+        f.write(declCSVLines)
         f.flush()

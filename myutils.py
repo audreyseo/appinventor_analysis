@@ -66,6 +66,34 @@ def isCommutative(mathBlock):
     return mathBlock['*type'] in commutatives
   return False
 
+def isComponentBlock(block):
+  if isinstance(block, dict):
+    if '*type' in block:
+      return block['*type'].startswith("component")
+  return False
+
+def numCompBlocksInCommon(blockA, blockB):
+  blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
+  tagsToCheck = ['test', '~bodyExp']
+  count = 0
+  
+  if isComponentBlock(blockA) and isComponentBlock(blockB):
+    nameKeys = ["instance_name", "component_selector"]
+    i = 0
+    while count == 0 and i < len(nameKeys):
+      name = nameKeys[i]
+      if name in blockA and name in blockB and blockA[name] == blockB[name]:
+        count += 1
+      i += 1
+  for tag in tagsToCheck:
+    if tag in blockA and tag in blockB:
+      count += numCompBlocksInCommon(blockA[tag], blockB[tag])
+  for key in blockListKeys:
+    if key in blockA and key in blockB and len(blockA[key]) == len(blockB[key]):
+      for i in range(len(blockA[key])):
+        count += numCompBlocksInCommon(blockA[key][i], blockB[key][i])
+  return count
+
 
 def prettyPrint(obj):
   return json.dumps(obj, indent=2, separators=(',', ': '))
