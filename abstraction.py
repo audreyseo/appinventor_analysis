@@ -23,7 +23,7 @@ import zipUtils as zu
 diffDirectory = ""
 dirName = os.path.dirname(os.path.realpath(__file__))
 
-tagsSeen = []
+tagsSeen = {}
 
 def getJail(jailLocation):
     global dirName
@@ -197,17 +197,28 @@ def countSomething(block, func):
         if key in block:
             for b in block[key]:
                 countSomething(b, func)
-    
+
+def isDisabled(block):
+    if "disabled" in block:
+        return block["disabled"] == "true"
+    return False
+
 def countAllBlocks(block):
+    global tagsSeen
     if not isinstance(block, dict):
+        return 0
+    if isDisabled(block):
+        logwrite("countAllBlocks:: block " + getName(block) + " is disabled.")
         return 0
     count = 0
     typeKey = '*type'
     tagsToCheck = ['test', '~bodyExp']
 
-    for tag in block:
-        if tag not in tagsSeen:
-            tagsSeen.append(tag)
+    #for tag in block:
+    #    if tag not in tagsSeen:
+    #        tagsSeen[tag] = []
+    #    if isinstance(block[tag]) not in tagsSeen[tag]:
+    #        tagsSeen[tag].append(block[tag])
     
     for tag in tagsToCheck:
         if tag in block:
@@ -227,6 +238,9 @@ def countAllBlocks(block):
 
 def countComponents(blocks):
     if not isinstance(blocks, dict):
+        return 0, 0
+    if isDisabled(blocks):
+        logwrite("countComponents:: block " + getName(blocks) + " is disabled.")
         return 0, 0
     count = 0
     genericCount = 0
@@ -268,6 +282,9 @@ def iterateOverProjectSets(ps, func):
                     for blk in equivClass:
                         func(eq, blk)
 
+def countAllBlocksWrapper(eq, blk):
+    countAllBlocks(blk)
+                        
 #def zipFileProcessFunction(archFileName, archFile):
 #    logwrite(archFileName)
 
@@ -283,10 +300,11 @@ if __name__=='__main__':
     #jailToEquivs(loc46k)
     equivs = jailToEquivs(loc10k)
 
-    iterateOverProjectSets(equivs, countAllBlocks)
+    iterateOverProjectSets(equivs, countAllBlocksWrapper)
 
-    logwrite("\n".join(tagsSeen))
-'''    equivs = jailToEquivs("10kjails")
+    for k,v in tagsSeen.iteritems():
+        logwrite(k + ": " + ", ".join(v))
+    #equivs = jailToEquivs("10kjails")
 
     allCount = 0
     compCount = 0
@@ -306,6 +324,8 @@ if __name__=='__main__':
     declTypeKinds = {}
     
     procedureReturns = []
+
+    decls = []
 
     for eq in equivs:
         for codeset in eq:
@@ -329,6 +349,15 @@ if __name__=='__main__':
                             else:
                                 kindsDict[k] = 1
                             if k == "declaration":
+                                decls.append({"type": tipe,
+                                              "kind": k,
+                                              "name": getName(blk),
+                                              "screen": codeset.screenName,
+                                              "programmer": eq.programmerName,
+                                              "project": eq.projectName,
+                                              "numBlocks": tmpAll,
+                                              "numCompBlocks": tmpComp
+                                })
                                 totalNumBlocksBesidesGlobalDecls += tmpAll
                                 totalNumCompBlocksWOGlobalDecls += tmpComp
                                 if k in declTypeKinds:
@@ -369,8 +398,8 @@ if __name__=='__main__':
                             else:
                                 nonComponentBlockTypesKinds[k] = {}
                                 nonComponentBlockTypesKinds[k][tipe] = 1
-                                topBlocksWithNoComps += 1
-                                #print "Project " + eq.projectName + " by " + eq.programmerName + " has no component blocks"
+                            topBlocksWithNoComps += 1
+                            #print "Project " + eq.projectName + " by " + eq.programmerName + " has no component blocks"
                         if ind % 1000 == 0:
                             print allCount, compCount
 
@@ -388,4 +417,7 @@ if __name__=='__main__':
     with open("procedurenames.txt", "w") as f:
         f.write('\n'.join(procedureReturns))
         f.flush()
-'''
+
+    with open("declfacts.txt", "w") as f:
+        f.write(prettyPrint(decls))
+        f.flush()

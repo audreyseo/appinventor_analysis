@@ -50,7 +50,7 @@ def getFileNames(directory, relDir=None):
     currentDirectory = os.path.join(currentDirectory, relDir)
   files = os.listdir(currentDirectory)
   files = [f for f in files if f != ".DS_Store"]
-  files = [f for f in files if os.path.isfile(os.path.join(currentDirectory, f)) or f.endswith(".aia")]
+  files = [f for f in files if (os.path.isfile(os.path.join(currentDirectory, f)) or f.endswith(".aia")) and not f.startswith(".") and f.find("#") == -1]
   if len(files) == 0:
     dirs = getDirectories(currentDirectory)
     if relDir != "":
@@ -98,7 +98,7 @@ def compareFiles(aiaDir, jailDir):
   jailFiles = stripExtension(jailFiles)
   mu.logwrite("compareFiles:: finished stripping jail extensions.")
   mu.logwrite("compareFiles:: #aias: " + str(len(aiaFiles)))
-  mu.logwrite("compareFiles:: #aias: " + str(len(jailFiles)))
+  mu.logwrite("compareFiles:: #jail: " + str(len(jailFiles)))
   index = 0
   for aia in aiaFiles:
     if aia not in jailFiles:
@@ -117,20 +117,20 @@ if __name__=='__main__':
   aia10k = "/Users/audrey/Downloads/ai2_10k_random_users_deidentified_aias"
   jail10k = "/Users/audrey/Personal/School/College/Work/summer2018/jailconversion/10kjails"
 
-  #onlyaia = compareDirs(aia10k, jail10k)
-  #for d in onlyaia:
-  #  print d
+  '''onlyaia = compareDirs(aia10k, jail10k)
+  for d in onlyaia:
+    print d
+  
+  print(len(onlyaia))'''
 
-  #print(len(onlyaia))
+  only = compareFiles(aia10k, jail10k)
 
-  #only = compareFiles(aia10k, jail10k)
+  for f in only:
+    mu.logwrite(f)
 
-  #for f in only:
-  #  print f
+  mu.logwrite("main:: # of files missing: " + str(len(only)))
 
-  #mu.logwrite("main:: # of files missing: " + str(len(only)))
-
-  aia46k = "/Users/audrey/Downloads/ai2_46k_prolific_users_deidentified_aias"
+  '''aia46k = "/Users/audrey/Downloads/ai2_46k_prolific_users_deidentified_aias"
   jail46kzipped = "/Users/audrey/Personal/School/College/Work/summer2018/jailconversion/46kjailzips"
   
   only46k = compareFiles(aia46k, jail46kzipped)
@@ -138,4 +138,4 @@ if __name__=='__main__':
   mu.logwrite("main:: # of 46k files missing: " + str(len(only46k)))
 
   with open("46kaiamissings.txt", "w") as f:
-    f.write("\n".join(only46k))
+    f.write("\n".join(only46k))'''

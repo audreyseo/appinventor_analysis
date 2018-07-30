@@ -1,8 +1,8 @@
 from myutils import *
 
-def equivalenceClassify(blocks):
+def equivalenceClassify(blocks, screenName=None):
     size = len(blocks)
-    blockset = CodeSet()
+    blockset = CodeSet(screenName)
 
     for i in range(size-1):
         for j in range(i + 1, size):
@@ -14,20 +14,21 @@ def equivalenceClassify(blocks):
 def projectEquivClasses(projectScreenCode, screenNames=None):
     if screenNames == None:
         return [equivalenceClassify(code) for code in projectScreenCode]
-    projClasses = {}
+    projClasses = []
     for i in range(len(screenNames)):
-        projClasses[screenNames[i]] = equivalenceClassify(projectScreenCode[i])
+        projClasses.append(equivalenceClassify(projectScreenCode[i], screenNames[i]))
     return projClasses
 
 
 class EquivalenceClass:
   ''' A data structure that records relationships between different
       projects in a ProjectSet, specifically ones that are all equivalent. '''
-  def __init__(self, a, b):
+  def __init__(self, a, b, screen=None):
     ''' a: an object equivalent to b
         b: an object equivalent to a
     '''
     self.members = [a, b]
+    self.screen = screen or ""
 
   def inClass(self, a, b):
     ''' a: an object where a is deemed equivalent to the other object b
@@ -85,10 +86,11 @@ class EquivalenceClass:
     return self.members[self.index]
   
 class CodeSet:
-  def __init__(self):
+  def __init__(self, screenName=None):
     self.classes = []
     self.codeDict = {}
-
+    self.screenName = "" if screenName == None else screenName
+    
   def numClasses(self):
     return len(self.classes)
   
@@ -125,7 +127,7 @@ class CodeSet:
     nameB = getName(codeB)
     
     if not (self.hasKey(codeA) or self.hasKey(codeB)):
-      self.classes.append(EquivalenceClass(codeA, codeB))
+      self.classes.append(EquivalenceClass(codeA, codeB, self.screenName))
       ind = self.numClasses() - 1
       self.codeDict[nameA] = ind
       self.codeDict[nameB] = ind
@@ -153,7 +155,8 @@ class CodeSet:
 
 class ProjectSet:
   def __init__(self, blocks, screenNames=None, name=None, programmer=None):
-    self.screenClasses = projectEquivClasses(blocks)
+    self.screenClasses = projectEquivClasses(blocks, screenNames)
+    self.screenNames = screenNames or []
     self.projectName = "" if name == None else name
     self.programmerName = "" if programmer == None else programmer
         
