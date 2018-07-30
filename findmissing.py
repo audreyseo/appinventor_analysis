@@ -66,13 +66,18 @@ def stripExtension(files):
   return [os.path.splitext(f)[0] for f in files]
 
 def compareFiles(aiaDir, jailDir):
+  mu.logwrite("compareFiles:: beginning.")
   jailDirs = getDirectories(jailDir)
+  mu.logwrite("compareFiles:: finished finding jail directory names.")
   aiaFiles = stripExtension(getFileNames(aiaDir))
+  mu.logwrite("compareFiles:: finished finding aia files.")
   aiaFilesOnly = []
   jailFiles = []
+  mu.logwrite("compareFiles:: about to begin.")
   if len(jailDirs) > 0:
-    jailFiles = stripExtension(getFileNames(jailDir))
+    jailFiles = getFileNames(jailDir)
   else:
+    mu.logwrite("compareFiles:: using zip directories for jail.")
     jailZips = os.listdir(jailDir)
     jailZips = [z for z in jailZips if z.endswith(".zip")]
     class Local:
@@ -83,15 +88,26 @@ def compareFiles(aiaDir, jailDir):
       jailName = os.path.join(usersDir, fileName)
       #jailName = os.path.splitext(jailName)[0]
       jailFiles.append(jailName)
+      Local.index += 1
+      if Local.index % 5000 == 0:
+        mu.logwrite("loopThroughJAILs in compareFiles:: found " + str(Local.index) + " jail files.")
     for z in jailZips:
       Local.currentJail = z
       zu.withUnzippedFiles(os.path.join(jailDir, z), loopThroughJAILs)
-    jailFiles = stripExtension(jailFiles)
+  mu.logwrite("compareFiles:: finished finding jail file names.")
+  jailFiles = stripExtension(jailFiles)
+  mu.logwrite("compareFiles:: finished stripping jail extensions.")
   mu.logwrite("compareFiles:: #aias: " + str(len(aiaFiles)))
   mu.logwrite("compareFiles:: #aias: " + str(len(jailFiles)))
+  index = 0
   for aia in aiaFiles:
     if aia not in jailFiles:
       aiaFilesOnly.append(aia)
+    else:
+      jailFiles.remove(aia)
+    index += 1
+    if index % 5000 == 0:
+      mu.logwrite("compareFiles:: # of checked aias: " + str(index))
   return aiaFilesOnly
 
 
@@ -107,12 +123,12 @@ if __name__=='__main__':
 
   #print(len(onlyaia))
 
-  only = compareFiles(aia10k, jail10k)
+  #only = compareFiles(aia10k, jail10k)
 
   #for f in only:
   #  print f
 
-  mu.logwrite("main:: # of files missing: " + str(len(only)))
+  #mu.logwrite("main:: # of files missing: " + str(len(only)))
 
   aia46k = "/Users/audrey/Downloads/ai2_46k_prolific_users_deidentified_aias"
   jail46kzipped = "/Users/audrey/Personal/School/College/Work/summer2018/jailconversion/46kjailzips"
@@ -120,3 +136,6 @@ if __name__=='__main__':
   only46k = compareFiles(aia46k, jail46kzipped)
 
   mu.logwrite("main:: # of 46k files missing: " + str(len(only46k)))
+
+  with open("46kaiamissings.txt", "w") as f:
+    f.write("\n".join(only46k))

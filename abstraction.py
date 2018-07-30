@@ -23,6 +23,7 @@ import zipUtils as zu
 diffDirectory = ""
 dirName = os.path.dirname(os.path.realpath(__file__))
 
+tagsSeen = []
 
 def getJail(jailLocation):
     global dirName
@@ -204,6 +205,10 @@ def countAllBlocks(block):
     typeKey = '*type'
     tagsToCheck = ['test', '~bodyExp']
 
+    for tag in block:
+        if tag not in tagsSeen:
+            tagsSeen.append(tag)
+    
     for tag in tagsToCheck:
         if tag in block:
             count += countAllBlocks(block[tag])
@@ -276,7 +281,11 @@ if __name__=='__main__':
     loc46k = "46kjailzips"
 
     #jailToEquivs(loc46k)
-    jailToEquivs(loc10k)
+    equivs = jailToEquivs(loc10k)
+
+    iterateOverProjectSets(equivs, countAllBlocks)
+
+    logwrite("\n".join(tagsSeen))
 '''    equivs = jailToEquivs("10kjails")
 
     allCount = 0
