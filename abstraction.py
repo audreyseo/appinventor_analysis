@@ -190,7 +190,7 @@ if __name__=='__main__':
     loc10k = "10kjails"
     loc46k = "46kjailzips"
     logEvery = 1000
-    analysisType = "10k"
+    analysisType = "46k"
     equivs = []
     if analysisType == "46k":
         logEvery = 50000
@@ -322,7 +322,8 @@ if __name__=='__main__':
                       "project": eq.projectName,
                       "screen": codeset.screenName,
                       "numEquivClasses": str(codeset.numClasses()),
-                      "totalDuplicatedHandlers": str(0) if codeset.numClassesLargeEnough() == 0 else str(reduce((lambda x, y: x + y), codeset.sizes(useLargeEnough=True)))
+                      "totalDuplicatedHandlers": str(0) if codeset.numClassesLargeEnough() == 0 else str(reduce((lambda x, y: x + y), codeset.sizes(useLargeEnough=True))),
+                      "avgNumBlocks": str(codeset.avgNumBlocks(True))
             }
             duplicationsByScreen.append(basics)                
 
@@ -349,7 +350,7 @@ if __name__=='__main__':
         f.flush()
 
     with open(analysisType + "-dupes.csv", "w") as f:
-        cols = ["programmer", "project", "screen", "numEquivClasses", "totalDuplicatedHandlers"]
+        cols = ["programmer", "project", "screen", "numEquivClasses", "totalDuplicatedHandlers", "avgNumBlocks"]
         csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in duplicationsByScreen])
         f.write(",".join(cols) + "\n")
         f.write(csvlines)

@@ -48,7 +48,12 @@ class EquivalenceClass:
       self.add(a)
     elif not self.isAMember(b):
       self.add(b)
-    
+
+  def numBlocks(self):
+    if self.size() > 0:
+      return countAllBlocks(self.members[0])
+    return 0
+  
   def size(self):
     return len(self.members)
 
@@ -122,7 +127,19 @@ class CodeSet:
     if useLargeEnough:
       return [x.size() for x in self.classes if x.largeEnough()]
     return [x.size() for x in self.classes]
-    
+
+  def avgNumBlocks(self, useLargeEnough=False):
+    if useLargeEnough:
+      if self.numClassesLargeEnough() == 0:
+        return 0
+      total = 0
+      for clss in self.classes:
+        if clss.largeEnough():
+          total += clss.numBlocks()
+      return total / float(self.numClassesLargeEnough())
+    if self.numClasses() == 0:
+      return 0
+    return reduce((lambda x, y: x + y.numBlocks()), self.classes) / float(self.numClasses)
   def hasKey(self, code):
     if isinstance(code, str):
       return code in self.codeDict
