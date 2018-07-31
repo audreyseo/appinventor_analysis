@@ -143,7 +143,7 @@ def jailToEquivs(jailLocation):
             screenCode = jail['screens'][name]['bky']
             if isinstance(screenCode, dict):
                 blks = screenCode['topBlocks']
-                blks = [b for b in blks if 'kind' in b and b['kind'] == 'declaration']
+                blks = [b for b in blks if '*type' in b and b['*type'] == "component_event"]
                 if len(blks) != 0:
                     code.append(blks)
                     onlyUsedNames.append(name)
@@ -177,113 +177,6 @@ def jailToEquivs(jailLocation):
     return equivs
 
 
-def countSomething(block, func):
-    if not isinstance(block, dict):
-        return 0
-
-    typeKey = '*type'
-    tagsToCheck = ['test', '~bodyExp']
-
-    for tag in tagsToCheck:
-        if tag in block:
-            countSomething(block[tag], func)
-
-    if typeKey in block:
-        # it's a block
-        func(block)
-    blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
-
-    for key in blockListKeys:
-        if key in block:
-            for b in block[key]:
-                countSomething(b, func)
-
-def isDisabled(block):
-    if "disabled" in block:
-        return block["disabled"] == "true"
-    return False
-                    
-def countAllBlocks(block):
-    global tagsSeen
-    if not isinstance(block, dict):
-        return 0
-    if isDisabled(block):
-        #logwrite("countAllBlocks:: block " + getName(block) + " is disabled.")
-        return 0
-    count = 0
-    typeKey = '*type'
-    tagsToCheck = ['test', '~bodyExp']
-
-    #for tag in block:
-    #    if tag not in tagsSeen:
-    #        tagsSeen[tag] = []
-    #    if isinstance(block[tag]) not in tagsSeen[tag]:
-    #        tagsSeen[tag].append(block[tag])
-    
-    for tag in tagsToCheck:
-        if tag in block:
-            count += countAllBlocks(block[tag])
-    
-    if typeKey in block:
-        count += 1
-    #if 'test' in block:
-    #    count += countAllBlocks(block['test'])
-    blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
-
-    for key in blockListKeys:
-        if key in block:
-            for b in block[key]:
-                count += countAllBlocks(b)
-    return count
-
-def countComponents(blocks):
-    if not isinstance(blocks, dict):
-        return 0, 0
-    if isDisabled(blocks):
-        #logwrite("countComponents:: block " + getName(blocks) + " is disabled.")
-        return 0, 0
-    count = 0
-    genericCount = 0
-    typeKey = '*type'
-    tagsToCheck = ['test', '~bodyExp']
-    blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
-    if typeKey in blocks:
-        if blocks[typeKey].startswith("component"):
-            count += 1
-            if "is_generic" in blocks:
-                if blocks['is_generic'] == "true":
-                    genericCount += 1
-    #if 'test' in blocks:
-    #    c, gc = countComponents(blocks['test'])
-    #    count += c
-    #    genericCount += gc
-    
-    for tag in tagsToCheck:
-        if tag in blocks:
-            #logwrite("countComponents: " + prettyPrint(blocks))
-            c, gc = countComponents(blocks[tag])
-            count += c
-            genericCount += gc
-    
-    for key in blockListKeys:
-        if key in blocks:
-            for b in blocks[key]:
-                c, gc = countComponents(b)
-                count += c
-                genericCount += gc
-
-    return count, genericCount
-
-def iterateOverProjectSets(ps, func):
-    for eq in ps:
-        for codeset in eq:
-            for equivClass in codeset:
-                if equivClass.size() > 0:
-                    for blk in equivClass:
-                        func(eq, blk)
-
-def countAllBlocksWrapper(eq, blk):
-    countAllBlocks(blk)
                         
 #def zipFileProcessFunction(archFileName, archFile):
 #    logwrite(archFileName)
@@ -296,9 +189,14 @@ if __name__=='__main__':
     createLogFile()
     loc10k = "10kjails"
     loc46k = "46kjailzips"
-
-    #jailToEquivs(loc46k)
-    equivs = jailToEquivs(loc10k)
+    logEvery = 1000
+    analysisType = "10k"
+    equivs = []
+    if analysisType == "46k":
+        logEvery = 50000
+        equivs = jailToEquivs(loc46k)
+    else:
+        equivs = jailToEquivs(loc10k)
 
     iterateOverProjectSets(equivs, countAllBlocksWrapper)
 
@@ -327,9 +225,21 @@ if __name__=='__main__':
 
     decls = []
 
+    duplicationsByScreen = []
+
+    dupesByEC = []
     for eq in equivs:
         for codeset in eq:
+            greaterThanFive = False
             for equivClass in codeset:
+                dupesByEC.append({"programmer": eq.programmerName,
+                                  "project": eq.projectName,
+                                  "screen": codeset.screenName,
+                                  "name": "" if equivClass.size() == 0 else getName(equivClass.members[0]),
+                                  "type": "" if equivClass.size() == 0 else equivClass.members[0]["*type"],
+                                  "kind": "" if equivClass.size() == 0 else equivClass.members[0]["kind"],
+                                  "size": "0" if equivClass.size() == 0 else str(countAllBlocks(equivClass.members[0]))
+                                  })
                 equivClass.findComponentCorrespondence()
                 if equivClass.size() > 0:
                     for blk in equivClass:
@@ -337,75 +247,84 @@ if __name__=='__main__':
                         ind += 1
                         tmpAll = countAllBlocks(blk)
                         tmpComp, tmpGeneric = countComponents(blk)
-                        allCount += tmpAll
-                        compCount += tmpComp
-                        if 'kind' in blk:
-                            numBlocksWithKind += 1
-                            k = blk['kind']
-                            tipe = blk['*type']
-                            if tipe == "procedures_defreturn":
-                                procedureReturns.append(eq.projectName + "-" + eq.programmerName)
-                            if k in kindsDict:
-                                kindsDict[k] += 1
-                            else:
-                                kindsDict[k] = 1
-                            if k == "declaration":
-                                decls.append({"type": tipe,
-                                              "kind": k,
-                                              "name": getName(blk),
-                                              "screen": codeset.screenName,
-                                              "programmer": eq.programmerName,
-                                              "project": eq.projectName,
-                                              "numBlocks": str(tmpAll),
-                                              "numCompBlocks": str(tmpComp),
-                                              "numDupes": equivClass.size()
-                                })
-                                totalNumBlocksBesidesGlobalDecls += tmpAll
-                                totalNumCompBlocksWOGlobalDecls += tmpComp
-                                if k in declTypeKinds:
-                                    if tipe in declTypeKinds[k]:
-                                        declTypeKinds[k][tipe]['num'] += 1
-                                        declTypeKinds[k][tipe]['all'] += tmpAll
-                                        declTypeKinds[k][tipe]['comp'] += tmpComp
-                                        declTypeKinds[k][tipe]['generic'] += tmpGeneric
+                        if tmpAll > 5:
+                            allCount += tmpAll
+                            compCount += tmpComp
+                            if 'kind' in blk:
+                                numBlocksWithKind += 1
+                                k = blk['kind']
+                                tipe = blk['*type']
+                                if tipe == "procedures_defreturn":
+                                    procedureReturns.append(eq.projectName + "-" + eq.programmerName)
+                                if k in kindsDict:
+                                    kindsDict[k] += 1
+                                else:
+                                    kindsDict[k] = 1
+                                if tipe != "global_declaration" and k == "declaration":
+                                    decls.append({"type": tipe,
+                                                  "kind": k,
+                                                  "name": getName(blk),
+                                                  "screen": codeset.screenName,
+                                                  "programmer": eq.programmerName,
+                                                  "project": eq.projectName,
+                                                  "numBlocks": str(tmpAll),
+                                                  "numCompBlocks": str(tmpComp),
+                                                  "numDupes": str(equivClass.size())
+                                    })
+                                    totalNumBlocksBesidesGlobalDecls += tmpAll
+                                    totalNumCompBlocksWOGlobalDecls += tmpComp
+                                    if k in declTypeKinds:
+                                        if tipe in declTypeKinds[k]:
+                                            declTypeKinds[k][tipe]['num'] += 1
+                                            declTypeKinds[k][tipe]['all'] += tmpAll
+                                            declTypeKinds[k][tipe]['comp'] += tmpComp
+                                            declTypeKinds[k][tipe]['generic'] += tmpGeneric
+                                        else:
+                                            declTypeKinds[k][tipe] = {}
+                                            declTypeKinds[k][tipe]['num'] = 1
+                                            declTypeKinds[k][tipe]['all'] = tmpAll
+                                            declTypeKinds[k][tipe]['comp'] = tmpComp
+                                            declTypeKinds[k][tipe]['generic'] = tmpGeneric
                                     else:
+                                        declTypeKinds[k] = {}
                                         declTypeKinds[k][tipe] = {}
                                         declTypeKinds[k][tipe]['num'] = 1
                                         declTypeKinds[k][tipe]['all'] = tmpAll
                                         declTypeKinds[k][tipe]['comp'] = tmpComp
                                         declTypeKinds[k][tipe]['generic'] = tmpGeneric
-                                else:
-                                    declTypeKinds[k] = {}
-                                    declTypeKinds[k][tipe] = {}
-                                    declTypeKinds[k][tipe]['num'] = 1
-                                    declTypeKinds[k][tipe]['all'] = tmpAll
-                                    declTypeKinds[k][tipe]['comp'] = tmpComp
-                                    declTypeKinds[k][tipe]['generic'] = tmpGeneric
-                        else:
-                            numComponentBlocksWithoutKind+=1
+                            else:
+                                numComponentBlocksWithoutKind+=1
 
-                        tipe = blk['*type']
-                        if (tmpComp == 0 and tmpAll != 0) or (tipe == "component_event" and tmpComp == 1):
-                            k = blk['kind']
-                        
-                            if tipe not in nonComponentBlockTypes:
-                                nonComponentBlockTypes[tipe] = 1
-                            else:
-                                nonComponentBlockTypes[tipe] += 1
-                            if k in nonComponentBlockTypesKinds:
-                                if tipe in nonComponentBlockTypesKinds[k]:
-                                    nonComponentBlockTypesKinds[k][tipe] += 1
+                            tipe = blk['*type']
+                            if (tmpComp == 0 and tmpAll != 0) or (tipe == "component_event" and tmpComp == 1):
+                                k = blk['kind']
+
+                                if tipe not in nonComponentBlockTypes:
+                                    nonComponentBlockTypes[tipe] = 1
                                 else:
+                                    nonComponentBlockTypes[tipe] += 1
+                                if k in nonComponentBlockTypesKinds:
+                                    if tipe in nonComponentBlockTypesKinds[k]:
+                                        nonComponentBlockTypesKinds[k][tipe] += 1
+                                    else:
+                                        nonComponentBlockTypesKinds[k][tipe] = 1
+                                else:
+                                    nonComponentBlockTypesKinds[k] = {}
                                     nonComponentBlockTypesKinds[k][tipe] = 1
-                            else:
-                                nonComponentBlockTypesKinds[k] = {}
-                                nonComponentBlockTypesKinds[k][tipe] = 1
-                            topBlocksWithNoComps += 1
-                            #print "Project " + eq.projectName + " by " + eq.programmerName + " has no component blocks"
-                        if ind % 1000 == 0:
-                            logwrite("all, comp: " + str(allCount) + ", " + str(compCount))
-                            equivClass.showCorrespondence()
-                            
+                                topBlocksWithNoComps += 1
+                                #print "Project " + eq.projectName + " by " + eq.programmerName + " has no component blocks"
+                            if ind % logEvery == 0:
+                                logwrite("all, comp: " + str(allCount) + ", " + str(compCount))
+                                equivClass.showCorrespondence()
+            if greaterThanFive:
+                scrn = codeset.screenName
+                basics = {"programmer": eq.programmerName,
+                          "project": eq.projectName,
+                          "screen": codeset.screenName,
+                          "numEquivClasses": str(codeset.numClasses()),
+                          "totalDuplicatedHandlers": str(0) if codeset.numClasses() == 0 else str(reduce((lambda x, y: x + y), codeset.sizes(useLargeEnough=True)))
+                }
+                duplicationsByScreen.append(basics)                
 
     print compCount, allCount, topBlocksWithNoComps, totalBlocks, numBlocksWithKind
     print totalNumBlocksBesidesGlobalDecls, totalNumCompBlocksWOGlobalDecls
@@ -414,17 +333,31 @@ if __name__=='__main__':
     print prettyPrint(kindsDict)
     print prettyPrint(nonComponentBlockTypesKinds)
 
-    with open("declarationtypesdict.txt", "w") as f:
+    with open(analysisType + "declarationtypesdict.txt", "w") as f:
         f.write(prettyPrint(declTypeKinds))
         f.flush()
 
-    with open("procedurenames.txt", "w") as f:
+    with open(analysisType + "procedurenames.txt", "w") as f:
         f.write('\n'.join(procedureReturns))
         f.flush()
 
-    cols = ["type", "kind", "name", "screen", "programmer", "project", "numBlocks", "numCompBlocks", "numDupes"]
-    with open("declfacts.csv", "w") as f:
+    with open(analysisType + "declfacts.csv", "w") as f:
+        cols = ["type", "kind", "name", "screen", "programmer", "project", "numBlocks", "numCompBlocks", "numDupes"]
         declCSVLines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in decls])
-        f.write(",".join(cols))
+        f.write(",".join(cols) + "\n")
         f.write(declCSVLines)
+        f.flush()
+
+    with open(analysisType + "-dupes.csv", "w") as f:
+        cols = ["programmer", "project", "screen", "numEquivClasses", "totalDuplicatedHandlers"]
+        csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in duplicationsByScreen])
+        f.write(",".join(cols) + "\n")
+        f.write(csvlines)
+        f.flush()
+
+    with open(analysisType + "-ec_dupes.csv", "w") as f:
+        cols = ["programmer", "project", "screen", "type", "kind", "name", "size"]
+        csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in dupesByEC])
+        f.write(",".join(cols) + "\n")
+        f.write(csvlines)
         f.flush()

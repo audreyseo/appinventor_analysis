@@ -95,6 +95,7 @@ def numCompBlocksInCommon(blockA, blockB):
   return count
 
 
+
 def prettyPrint(obj):
   return json.dumps(obj, indent=2, separators=(',', ': '))
 
@@ -367,3 +368,112 @@ def compareAllBlocks(blocks):
         #seen.append((j,i))
         #seen.append((i,j))
         createDiff(blocks[i], blocks[j])
+
+
+def countSomething(block, func):
+  if not isinstance(block, dict):
+    return 0
+
+  typeKey = '*type'
+  tagsToCheck = ['test', '~bodyExp']
+
+  for tag in tagsToCheck:
+    if tag in block:
+      countSomething(block[tag], func)
+
+  if typeKey in block:
+    # it's a block
+    func(block)
+  blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
+
+  for key in blockListKeys:
+    if key in block:
+      for b in block[key]:
+        countSomething(b, func)
+        
+def isDisabled(block):
+  if "disabled" in block:
+    return block["disabled"] == "true"
+  return False
+                    
+def countAllBlocks(block):
+  global tagsSeen
+  if not isinstance(block, dict):
+    return 0
+  if isDisabled(block):
+    #logwrite("countAllBlocks:: block " + getName(block) + " is disabled.")
+    return 0
+  count = 0
+  typeKey = '*type'
+  tagsToCheck = ['test', '~bodyExp']
+
+  #for tag in block:
+  #    if tag not in tagsSeen:
+  #        tagsSeen[tag] = []
+  #    if isinstance(block[tag]) not in tagsSeen[tag]:
+  #        tagsSeen[tag].append(block[tag])
+
+  for tag in tagsToCheck:
+    if tag in block:
+      count += countAllBlocks(block[tag])
+
+  if typeKey in block:
+    count += 1
+  #if 'test' in block:
+  #    count += countAllBlocks(block['test'])
+  blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
+
+  for key in blockListKeys:
+    if key in block:
+      for b in block[key]:
+        count += countAllBlocks(b)
+  return count
+
+def countComponents(blocks):
+  if not isinstance(blocks, dict):
+    return 0, 0
+  if isDisabled(blocks):
+    #logwrite("countComponents:: block " + getName(blocks) + " is disabled.")
+    return 0, 0
+  count = 0
+  genericCount = 0
+  typeKey = '*type'
+  tagsToCheck = ['test', '~bodyExp']
+  blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
+  if typeKey in blocks:
+    if blocks[typeKey].startswith("component"):
+      count += 1
+      if "is_generic" in blocks:
+        if blocks['is_generic'] == "true":
+          genericCount += 1
+  #if 'test' in blocks:
+  #    c, gc = countComponents(blocks['test'])
+  #    count += c
+  #    genericCount += gc
+
+  for tag in tagsToCheck:
+    if tag in blocks:
+      #logwrite("countComponents: " + prettyPrint(blocks))
+      c, gc = countComponents(blocks[tag])
+      count += c
+      genericCount += gc
+
+  for key in blockListKeys:
+    if key in blocks:
+      for b in blocks[key]:
+        c, gc = countComponents(b)
+        count += c
+        genericCount += gc
+
+  return count, genericCount
+
+def iterateOverProjectSets(ps, func):
+  for eq in ps:
+    for codeset in eq:
+      for equivClass in codeset:
+        if equivClass.size() > 0:
+          for blk in equivClass:
+            func(eq, blk)
+
+def countAllBlocksWrapper(eq, blk):
+  countAllBlocks(blk)

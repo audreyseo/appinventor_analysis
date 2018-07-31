@@ -52,6 +52,14 @@ class EquivalenceClass:
   def size(self):
     return len(self.members)
 
+  def numBlocks(self):
+    if self.size() == 0:
+      return 0
+    return countAllBlocks(self.members[0])
+
+  def largeEnough(self):
+    return self.numBlocks() > 5
+  
   def hasOverlap(self, other):
     for obj in self.members:
       if other.isAMember(obj):
@@ -107,7 +115,9 @@ class CodeSet:
   def numClasses(self):
     return len(self.classes)
   
-  def sizes(self):
+  def sizes(self, useLargeEnough=False):
+    if useLargeEnough:
+      return [x.size() for x in self.classes if x.largeEnough()]
     return [x.size() for x in self.classes]
     
   def hasKey(self, code):
