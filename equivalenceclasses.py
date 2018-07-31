@@ -114,6 +114,9 @@ class CodeSet:
     
   def numClasses(self):
     return len(self.classes)
+
+  def numClassesLargeEnough(self):
+    return len(self.sizes(True))
   
   def sizes(self, useLargeEnough=False):
     if useLargeEnough:

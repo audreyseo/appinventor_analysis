@@ -243,11 +243,11 @@ if __name__=='__main__':
                 equivClass.findComponentCorrespondence()
                 if equivClass.size() > 0:
                     for blk in equivClass:
-                        totalBlocks += 1
                         ind += 1
                         tmpAll = countAllBlocks(blk)
                         tmpComp, tmpGeneric = countComponents(blk)
                         if tmpAll > 5:
+                            totalBlocks += 1
                             allCount += tmpAll
                             compCount += tmpComp
                             if 'kind' in blk:
@@ -316,15 +316,15 @@ if __name__=='__main__':
                             if ind % logEvery == 0:
                                 logwrite("all, comp: " + str(allCount) + ", " + str(compCount))
                                 equivClass.showCorrespondence()
-            if greaterThanFive:
-                scrn = codeset.screenName
-                basics = {"programmer": eq.programmerName,
-                          "project": eq.projectName,
-                          "screen": codeset.screenName,
-                          "numEquivClasses": str(codeset.numClasses()),
-                          "totalDuplicatedHandlers": str(0) if codeset.numClasses() == 0 else str(reduce((lambda x, y: x + y), codeset.sizes(useLargeEnough=True)))
-                }
-                duplicationsByScreen.append(basics)                
+            #if greaterThanFive:
+            scrn = codeset.screenName
+            basics = {"programmer": eq.programmerName,
+                      "project": eq.projectName,
+                      "screen": codeset.screenName,
+                      "numEquivClasses": str(codeset.numClasses()),
+                      "totalDuplicatedHandlers": str(0) if codeset.numClassesLargeEnough() == 0 else str(reduce((lambda x, y: x + y), codeset.sizes(useLargeEnough=True)))
+            }
+            duplicationsByScreen.append(basics)                
 
     print compCount, allCount, topBlocksWithNoComps, totalBlocks, numBlocksWithKind
     print totalNumBlocksBesidesGlobalDecls, totalNumCompBlocksWOGlobalDecls
