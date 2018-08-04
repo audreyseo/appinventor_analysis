@@ -29,6 +29,7 @@ class EquivalenceClass:
     '''
     self.members = [a, b]
     self.screen = screen or ""
+    self.corrmatrix = []
   
   def inClass(self, a, b):
     ''' a: an object where a is deemed equivalent to the other object b
@@ -49,6 +50,10 @@ class EquivalenceClass:
     elif not self.isAMember(b):
       self.add(b)
 
+  def getName(self, index=0):
+    if index < self.size():
+      return self.screen + "|" + getName(self.members[index])
+    return ""
   def numBlocks(self):
     if self.size() > 0:
       return countAllBlocks(self.members[0])
@@ -100,7 +105,22 @@ class EquivalenceClass:
   def showCorrespondence(self):
     for i in range(len(self.corrmatrix)):
       print " ".join(map(lambda x: str(x).ljust(4), self.corrmatrix[i]))
-                     
+
+  def needsGenerics(self):
+    if self.corrmatrix == []:
+      self.findComponentCorrespondence()
+    allZero = True
+    for i in range(self.size()):
+      allZero = allZero and self.corrmatrix[i][i] == 0
+    if allZero:
+      return False
+    for i in range(self.size()-1):
+      item = self.corrmatrix[i][i]
+      for j in range(i + 1, self.size()):
+        if item - 1 > self.corrmatrix[i][j]:
+          return True
+    return False
+
   def __iter__(self):
     self.index = -1
     return self
@@ -229,3 +249,7 @@ class ProjectSet:
       raise StopIteration
     self.index += 1
     return self.screenClasses[self.index]
+
+
+  def identity(self):
+    return self.programmerName + ":" + self.projectName + ("" if len(self.screenNames) == 0 else "(" + ",".join(self.screenNames) + ")")

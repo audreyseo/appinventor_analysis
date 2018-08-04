@@ -21,11 +21,17 @@ def createLogFile():
 
 def logwrite (msg):
   global logFileName
+  mymsg = ""
+  if not (isinstance(msg, str) or isinstance(msg, unicode)):
+    print type(msg)
+    mymsg = str(msg)
+  else:
+    mymsg = msg.encode("utf-8")
   with open (logFileName, 'a') as logFile:
     # [2018/07/12, audrey] add conversion of logStartTime to a datetime.timedelta bc
     # otherwise python actually complains
     timeElapsed = datetime.datetime.utcnow() - logStartTime
-    timedMsg = str(timeElapsed) + ': ' + str(msg)
+    timedMsg = str(timeElapsed) + ': ' + mymsg
     if printMessagesToConsole:
       print(timedMsg) 
     logFile.write(timedMsg + "\n")
@@ -373,7 +379,8 @@ def compareAllBlocks(blocks):
 def countSomething(block, func):
   if not isinstance(block, dict):
     return 0
-
+  if isDisabled(block):
+    return 0
   typeKey = '*type'
   tagsToCheck = ['test', '~bodyExp']
 
@@ -390,12 +397,25 @@ def countSomething(block, func):
     if key in block:
       for b in block[key]:
         countSomething(b, func)
-        
+
+def countGenerics(block):
+  mydict = {"total": 0}
+  def countFunction(blk):
+    if "is_generic" in blk:
+      if blk["is_generic"] == "true":
+        mydict["total"] += 1
+  countSomething(block, countFunction)
+  return mydict["total"]
+
 def isDisabled(block):
   if "disabled" in block:
     return block["disabled"] == "true"
   return False
-                    
+
+def countBlocksInside(block):
+  count = countAllBlocks(block)
+  return count - 1 if count > 0 else 0
+
 def countAllBlocks(block):
   global tagsSeen
   if not isinstance(block, dict):

@@ -118,13 +118,39 @@ def createDiff(blockA, blockB, nameA=None, nameB=None):
                 f.write(difflib.HtmlDiff().make_file(stri, strj, nameA, nameB))
                 f.flush()
 
+
+totalGenerics = 0
+totalHandlerBlocks = 0
+totalComponents = 0
 def jailToEquivs(jailLocation):
     printMessagesEverySoOften = 10000
     bigDirs = getDirectories(jailLocation)
     equivs = []
+    global totalGenerics
+    global totalHandlerBlocks
+    global totalComponents
     class MyNum:
         num = 0
+        totalGenerics = 0
+        totalHandlerBlocks = 0
     #num = 0
+
+    def getStatsOnGenerics(jail):
+        global totalGenerics
+        global totalHandlerBlocks
+        global totalComponents
+        screenNames = jail["*Names of Screens"]
+        for screen in screenNames:
+            code = jail["screens"][screen]["bky"]
+            if isinstance(code, dict):
+                blocks = code["topBlocks"]
+                blocks = [b for b in blocks if '*type' in b and b['*type'] == "component_event"]
+                #blocks = [b for b in blocks if 'kind' in b and b['kind'] == "declaration" and "*type" in b and b["*type"] != "global_declaration"]
+                for blk in blocks:
+                    totalGenerics += countGenerics(blk)
+                    totalHandlerBlocks += countBlocksInside(blk)
+                    comp, gen = countComponents(blk)
+                    totalComponents += comp
 
     def unarchivedFiles(usersDir, userID, projName):
         jail = getJail(os.path.join(jailLocation, usersDir, userID, projName))
@@ -136,6 +162,7 @@ def jailToEquivs(jailLocation):
         equivify(jail, "", splits[0], splits[1])
         
     def equivify(jail, usersDir, userID, projName):
+        #getStatsOnGenerics(jail)
         screenNames = jail['*Names of Screens']
         onlyUsedNames = []
         code = []
@@ -174,6 +201,9 @@ def jailToEquivs(jailLocation):
                     num += 1
                     if num % printMessagesEverySoOften == 0:
                         logwrite(str(num) + " " + str(equivs[num-1].numScreens()))'''
+    logwrite("jailToEquivs():: Number of generics: " + str(totalGenerics))
+    logwrite("jailToEquivs():: Total number of blocks in handlers: " + str(totalHandlerBlocks))
+    logwrite("jailToEquivs():: Total number of component blocks: " + str(totalComponents))
     return equivs
 
 
@@ -233,12 +263,13 @@ if __name__=='__main__':
             greaterThanFive = False
             for equivClass in codeset:
                 dupesByEC.append({"programmer": eq.programmerName,
-                                  "project": eq.projectName,
+                                  "project": "\"" + eq.projectName + "\"",
                                   "screen": codeset.screenName,
-                                  "name": "" if equivClass.size() == 0 else getName(equivClass.members[0]),
+                                  "name": "" if equivClass.size() == 0 else "\"" + getName(equivClass.members[0]) + "\"",
                                   "type": "" if equivClass.size() == 0 else equivClass.members[0]["*type"],
                                   "kind": "" if equivClass.size() == 0 else equivClass.members[0]["kind"],
-                                  "size": "0" if equivClass.size() == 0 else str(countAllBlocks(equivClass.members[0]))
+                                  "size": "0" if equivClass.size() == 0 else str(countAllBlocks(equivClass.members[0])),
+                                  "requiresGenerics": str(equivClass.needsGenerics())
                                   })
                 equivClass.findComponentCorrespondence()
                 if equivClass.size() > 0:
@@ -263,10 +294,10 @@ if __name__=='__main__':
                                 if tipe != "global_declaration" and k == "declaration":
                                     decls.append({"type": tipe,
                                                   "kind": k,
-                                                  "name": getName(blk),
+                                                  "name": "\"" + getName(blk) + "\"",
                                                   "screen": codeset.screenName,
                                                   "programmer": eq.programmerName,
-                                                  "project": eq.projectName,
+                                                  "project":  "\"" + eq.projectName + "\"",
                                                   "numBlocks": str(tmpAll),
                                                   "numCompBlocks": str(tmpComp),
                                                   "numDupes": str(equivClass.size())
@@ -312,14 +343,14 @@ if __name__=='__main__':
                                     nonComponentBlockTypesKinds[k] = {}
                                     nonComponentBlockTypesKinds[k][tipe] = 1
                                 topBlocksWithNoComps += 1
-                                #print "Project " + eq.projectName + " by " + eq.programmerName + " has no component blocks"
+                                
                             if ind % logEvery == 0:
-                                logwrite("all, comp: " + str(allCount) + ", " + str(compCount))
+                                logwrite(eq.identity() + "::" + equivClass.getName() +  ":: all, comp: " + str(allCount) + ", " + str(compCount))
                                 equivClass.showCorrespondence()
             #if greaterThanFive:
             scrn = codeset.screenName
             basics = {"programmer": eq.programmerName,
-                      "project": eq.projectName,
+                      "project": "\"" + eq.projectName + "\"",
                       "screen": codeset.screenName,
                       "numEquivClasses": str(codeset.numClasses()),
                       "totalDuplicatedHandlers": str(0) if codeset.numClassesLargeEnough() == 0 else str(reduce((lambda x, y: x + y), codeset.sizes(useLargeEnough=True))),
@@ -357,7 +388,7 @@ if __name__=='__main__':
         f.flush()
 
     with open(analysisType + "-ec_dupes.csv", "w") as f:
-        cols = ["programmer", "project", "screen", "type", "kind", "name", "size"]
+        cols = ["programmer", "project", "screen", "type", "kind", "name", "size", "requiresGenerics"]
         csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in dupesByEC])
         f.write(",".join(cols) + "\n")
         f.write(csvlines)
