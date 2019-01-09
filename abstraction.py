@@ -9,7 +9,7 @@
 import json
 import os
 import copy
-# [2018/07/13] Use difflib to generate output
+# [2018/07/13] Use difflib to generate diff output
 import difflib
 
 import datetime
@@ -272,20 +272,14 @@ if __name__=='__main__':
     duplicationsByScreen = []
 
     dupesByEC = []
+
+    # Why is going through this stuff always a pain sigh.
+    # I want to make this look better, i.e. cleaner but is it always just going to be this mess.
     for eq in equivs:
         for codeset in eq:
             greaterThanFive = False
             for equivClass in codeset:
                 dupesByEC.append(dupesByEquivsObject(eq, codeset, equivClass))
-                """{"programmer": eq.programmerName,
-                                  "project": "\"" + eq.projectName + "\"",
-                                  "screen": codeset.screenName,
-                                  "name": "" if equivClass.size() == 0 else "\"" + getName(equivClass.members[0]) + "\"",
-                                  "type": "" if equivClass.size() == 0 else equivClass.members[0]["*type"],
-                                  "kind": "" if equivClass.size() == 0 else equivClass.members[0]["kind"],
-                                  "size": "0" if equivClass.size() == 0 else str(countAllBlocks(equivClass.members[0])),
-                                  "requiresGenerics": str(equivClass.needsGenerics())
-                                  })"""
                 equivClass.findComponentCorrespondence()
                 if equivClass.size() > 0:
                     for blk in equivClass:
@@ -319,22 +313,16 @@ if __name__=='__main__':
                                     })
                                     totalNumBlocksBesidesGlobalDecls += tmpAll
                                     totalNumCompBlocksWOGlobalDecls += tmpComp
-                                    if k in declTypeKinds:
-                                        #if tipe in declTypeKinds[k]:
-                                        #    declTypeKinds[k][tipe]['num'] += 1
-                                        #    declTypeKinds[k][tipe]['all'] += tmpAll
-                                        #    declTypeKinds[k][tipe]['comp'] += tmpComp
-                                        #    declTypeKinds[k][tipe]['generic'] += tmpGeneric
-                                        #else:
-                                        if tipe not in declTypeKinds[k]:
-                                            declTypeKinds[k][tipe] = {}
-                                            #declTypeKinds[k][tipe]['num'] = 1
-                                            #declTypeKinds[k][tipe]['all'] = tmpAll
-                                            #declTypeKinds[k][tipe]['comp'] = tmpComp
-                                            #declTypeKinds[k][tipe]['generic'] = tmpGeneric
-                                    else:
+                                    if k not in declTypeKinds:
                                         declTypeKinds[k] = {}
+                                    if tipe not in declTypeKinds[k]:
                                         declTypeKinds[k][tipe] = {}
+                                    #if k in declTypeKinds:
+                                    #    if tipe not in declTypeKinds[k]:
+                                    #        declTypeKinds[k][tipe] = {}
+                                    #else:
+                                    #    declTypeKinds[k] = {}
+                                    #    declTypeKinds[k][tipe] = {}
                                     declTypeKinds[k][tipe]['num'] = 1
                                     declTypeKinds[k][tipe]['all'] = tmpAll
                                     declTypeKinds[k][tipe]['comp'] = tmpComp
