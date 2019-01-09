@@ -207,6 +207,18 @@ def jailToEquivs(jailLocation):
     return equivs
 
 
+def dupesByEquivsObject(project, projectSet, equivClass):
+    return {
+        "programmer": project.programmerName,
+        "project": "\"" + project.projectName + "\"",
+        "screen": projectSet.screenName,
+        "name": "" if equivClass.size() == 0 else "\"" + getName(equivClass.members[0]) + "\"",
+        "type": "" if equivClass.size() == 0 else equivClass.members[0]["*type"],
+        "kind": "" if equivClass.size() == 0 else equivClass.members[0]["kind"],
+        "size": "0" if equivClass.size() == 0 else str(countAllBlocks(equivClass.members[0])),
+        "requiresGenerics": str(equivClass.needsGenerics())
+    }
+
                         
 #def zipFileProcessFunction(archFileName, archFile):
 #    logwrite(archFileName)
@@ -220,8 +232,10 @@ if __name__=='__main__':
     loc10k = "10kjails"
     loc46k = "46kjailzips"
     logEvery = 1000
-    analysisType = "46k"
+    analysisType = "10k"
     equivs = []
+    csvDirectory = "testCSVs"
+    txtDirectory = "testTXTs"
     if analysisType == "46k":
         logEvery = 50000
         equivs = jailToEquivs(loc46k)
@@ -262,7 +276,8 @@ if __name__=='__main__':
         for codeset in eq:
             greaterThanFive = False
             for equivClass in codeset:
-                dupesByEC.append({"programmer": eq.programmerName,
+                dupesByEC.append(dupesByEquivsObject(eq, codeset, equivClass))
+                """{"programmer": eq.programmerName,
                                   "project": "\"" + eq.projectName + "\"",
                                   "screen": codeset.screenName,
                                   "name": "" if equivClass.size() == 0 else "\"" + getName(equivClass.members[0]) + "\"",
@@ -270,7 +285,7 @@ if __name__=='__main__':
                                   "kind": "" if equivClass.size() == 0 else equivClass.members[0]["kind"],
                                   "size": "0" if equivClass.size() == 0 else str(countAllBlocks(equivClass.members[0])),
                                   "requiresGenerics": str(equivClass.needsGenerics())
-                                  })
+                                  })"""
                 equivClass.findComponentCorrespondence()
                 if equivClass.size() > 0:
                     for blk in equivClass:
@@ -305,24 +320,25 @@ if __name__=='__main__':
                                     totalNumBlocksBesidesGlobalDecls += tmpAll
                                     totalNumCompBlocksWOGlobalDecls += tmpComp
                                     if k in declTypeKinds:
-                                        if tipe in declTypeKinds[k]:
-                                            declTypeKinds[k][tipe]['num'] += 1
-                                            declTypeKinds[k][tipe]['all'] += tmpAll
-                                            declTypeKinds[k][tipe]['comp'] += tmpComp
-                                            declTypeKinds[k][tipe]['generic'] += tmpGeneric
-                                        else:
+                                        #if tipe in declTypeKinds[k]:
+                                        #    declTypeKinds[k][tipe]['num'] += 1
+                                        #    declTypeKinds[k][tipe]['all'] += tmpAll
+                                        #    declTypeKinds[k][tipe]['comp'] += tmpComp
+                                        #    declTypeKinds[k][tipe]['generic'] += tmpGeneric
+                                        #else:
+                                        if tipe not in declTypeKinds[k]:
                                             declTypeKinds[k][tipe] = {}
-                                            declTypeKinds[k][tipe]['num'] = 1
-                                            declTypeKinds[k][tipe]['all'] = tmpAll
-                                            declTypeKinds[k][tipe]['comp'] = tmpComp
-                                            declTypeKinds[k][tipe]['generic'] = tmpGeneric
+                                            #declTypeKinds[k][tipe]['num'] = 1
+                                            #declTypeKinds[k][tipe]['all'] = tmpAll
+                                            #declTypeKinds[k][tipe]['comp'] = tmpComp
+                                            #declTypeKinds[k][tipe]['generic'] = tmpGeneric
                                     else:
                                         declTypeKinds[k] = {}
                                         declTypeKinds[k][tipe] = {}
-                                        declTypeKinds[k][tipe]['num'] = 1
-                                        declTypeKinds[k][tipe]['all'] = tmpAll
-                                        declTypeKinds[k][tipe]['comp'] = tmpComp
-                                        declTypeKinds[k][tipe]['generic'] = tmpGeneric
+                                    declTypeKinds[k][tipe]['num'] = 1
+                                    declTypeKinds[k][tipe]['all'] = tmpAll
+                                    declTypeKinds[k][tipe]['comp'] = tmpComp
+                                    declTypeKinds[k][tipe]['generic'] = tmpGeneric
                             else:
                                 numComponentBlocksWithoutKind+=1
 
@@ -365,29 +381,36 @@ if __name__=='__main__':
     print prettyPrint(kindsDict)
     print prettyPrint(nonComponentBlockTypesKinds)
 
-    with open(analysisType + "declarationtypesdict.txt", "w") as f:
+    declarationTypesDictLoc = os.path.join(txtDirectory, analysisType + "declarationtypesdict.txt")
+    procedureNamesLoc = os.path.join(txtDirectory, analysisType + "procedurenames.txt")
+
+    with open(declarationTypesDictLoc, "w") as f:
         f.write(prettyPrint(declTypeKinds))
         f.flush()
 
-    with open(analysisType + "procedurenames.txt", "w") as f:
+    with open(procedureNamesLoc, "w") as f:
         f.write('\n'.join(procedureReturns))
         f.flush()
 
-    with open(analysisType + "declfacts.csv", "w") as f:
+
+    declarationFactsLoc = os.path.join(csvDirectory, analysisType + "declfacts.csv")
+    dupesLoc = os.path.join(csvDirectory, analysisType + "-dupes.csv")
+    equivclassDupesLoc = os.path.join(csvDirectory, analysisType + "-ec_dupes.csv")
+    with open(declarationFactsLoc, "w") as f:
         cols = ["type", "kind", "name", "screen", "programmer", "project", "numBlocks", "numCompBlocks", "numDupes"]
         declCSVLines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in decls])
         f.write(",".join(cols) + "\n")
         f.write(declCSVLines)
         f.flush()
 
-    with open(analysisType + "-dupes.csv", "w") as f:
+    with open(dupesLoc, "w") as f:
         cols = ["programmer", "project", "screen", "numEquivClasses", "totalDuplicatedHandlers", "avgNumBlocks"]
         csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in duplicationsByScreen])
         f.write(",".join(cols) + "\n")
         f.write(csvlines)
         f.flush()
 
-    with open(analysisType + "-ec_dupes.csv", "w") as f:
+    with open(equivclassDupesLoc, "w") as f:
         cols = ["programmer", "project", "screen", "type", "kind", "name", "size", "requiresGenerics"]
         csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in dupesByEC])
         f.write(",".join(cols) + "\n")
