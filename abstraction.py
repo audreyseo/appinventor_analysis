@@ -273,6 +273,8 @@ if __name__=='__main__':
 
     dupesByEC = []
 
+    shouldPrint = True
+
     # Why is going through this stuff always a pain sigh.
     # I want to make this look better, i.e. cleaner but is it always just going to be this mess.
     for eq in equivs:
@@ -286,6 +288,10 @@ if __name__=='__main__':
                         ind += 1
                         tmpAll = countAllBlocks(blk)
                         tmpComp, tmpGeneric = countComponents(blk)
+
+                        if shouldPrint and tmpAll > 30:
+                            print prettyPrint(blk)
+                            shouldPrint = False
                         if tmpAll > 5:
                             totalBlocks += 1
                             allCount += tmpAll
@@ -338,14 +344,21 @@ if __name__=='__main__':
                                     nonComponentBlockTypes[tipe] = 1
                                 else:
                                     nonComponentBlockTypes[tipe] += 1
-                                if k in nonComponentBlockTypesKinds:
-                                    if tipe in nonComponentBlockTypesKinds[k]:
-                                        nonComponentBlockTypesKinds[k][tipe] += 1
-                                    else:
-                                        nonComponentBlockTypesKinds[k][tipe] = 1
-                                else:
+
+                                if k not in nonComponentBlockTypesKinds:
                                     nonComponentBlockTypesKinds[k] = {}
+                                if tipe not in nonComponentBlockTypesKinds[k]:
                                     nonComponentBlockTypesKinds[k][tipe] = 1
+                                else:
+                                    nonComponentBlockTypesKinds[k][tipe] += 1
+                                #if k in nonComponentBlockTypesKinds:
+                                #    if tipe in nonComponentBlockTypesKinds[k]:
+                                #        nonComponentBlockTypesKinds[k][tipe] += 1
+                                #    else:
+                                #        nonComponentBlockTypesKinds[k][tipe] = 1
+                                #else:
+                                #    nonComponentBlockTypesKinds[k] = {}
+                                #    nonComponentBlockTypesKinds[k][tipe] = 1
                                 topBlocksWithNoComps += 1
                                 
                             if ind % logEvery == 0:
