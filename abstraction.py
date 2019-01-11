@@ -14,8 +14,11 @@ import difflib
 
 import datetime
 
+
+# [2019/01/11] The "libraries" that I made of helper functions for this
 from equivalenceclasses import *
-from myutils import *
+import myutils as mus
+#from myutils import *
 from findmissing import *
 
 import zipUtils as zu
@@ -48,12 +51,12 @@ def fuzzify(blk, depth=0):
     blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
 
     # [2018/07/18] standardize ordering of arguments
-    if isCommutative(blk):
+    if mus.isCommutative(blk):
         if argsKey in blk:
             arg1 = copy.deepcopy(blk[argsKey][0])
             arg2 = copy.deepcopy(blk[argsKey][1])
             name1 = getName(arg1)
-            name2 = getName(arg2)
+            name2 = mus.getName(arg2)
             if len(name1) > len(name2):
                 blk[argsKey][0] = arg2
                 blk[argsKey][1] = arg1
@@ -86,7 +89,7 @@ def fuzzifyScreens(screens):
 # of the json pretty-printed output.
 def formatBlock(block):
     blockCopy = copy.deepcopy(block)
-    removeIDs(blockCopy)
+    mus.removeIDs(blockCopy)
     return json.dumps(blockCopy, indent=2, separators=(',', ': ')).split('\n')
 
 # [2018/07/16] determines if nonsimilar blocks should have a diff outputed
@@ -94,12 +97,12 @@ def formatBlock(block):
 def createDiff(blockA, blockB, nameA=None, nameB=None):
     if nameA == None:
         if 'instance_name' in blockA:
-            nameA = getName(blockA)
+            nameA = mus.getName(blockA)
     else:
         nameA = str(nameA)
     if nameB == None:
         if  'instance_name' in blockB:
-            nameB = getName(blockB)
+            nameB = mus.getName(blockB)
     else:
         nameB = str(nameB)
     stri = formatBlock(blockA)
@@ -135,6 +138,8 @@ def jailToEquivs(jailLocation):
         totalHandlerBlocks = 0
     #num = 0
 
+    # Only used once in commented-out code, so this is technically obsolete
+    """
     def getStatsOnGenerics(jail):
         global totalGenerics
         global totalHandlerBlocks
@@ -151,7 +156,7 @@ def jailToEquivs(jailLocation):
                     totalHandlerBlocks += countBlocksInside(blk)
                     comp, gen = countComponents(blk)
                     totalComponents += comp
-
+    """
     def unarchivedFiles(usersDir, userID, projName):
         jail = getJail(os.path.join(jailLocation, usersDir, userID, projName))
         equivify(jail, usersDir, userID, projName)
@@ -212,7 +217,7 @@ def dupesByEquivsObject(project, projectSet, equivClass):
         "programmer": project.programmerName,
         "project": "\"" + project.projectName + "\"",
         "screen": projectSet.screenName,
-        "name": "" if equivClass.size() == 0 else "\"" + getName(equivClass.members[0]) + "\"",
+        "name": "" if equivClass.size() == 0 else "\"" + mus.getName(equivClass.members[0]) + "\"",
         "type": "" if equivClass.size() == 0 else equivClass.members[0]["*type"],
         "kind": "" if equivClass.size() == 0 else equivClass.members[0]["kind"],
         "size": "0" if equivClass.size() == 0 else str(countAllBlocks(equivClass.members[0])),
@@ -228,7 +233,7 @@ def dupesByEquivsObject(project, projectSet, equivClass):
 #    for zf in zipFileNames:
 #        zu.withUnzippedFiles(os.path.join("46kjailzips", zf), zipFileProcessor)                    
 if __name__=='__main__':
-    createLogFile()
+    mus.createLogFile()
     loc10k = "10kjails"
     loc46k = "46kjailzips"
     logEvery = 1000
@@ -242,7 +247,7 @@ if __name__=='__main__':
     else:
         equivs = jailToEquivs(loc10k)
 
-    iterateOverProjectSets(equivs, countAllBlocksWrapper)
+    mus.iterateOverProjectSets(equivs, mus.countAllBlocksWrapper)
 
     for k,v in tagsSeen.iteritems():
         logwrite(k + ": " + ", ".join(v))
@@ -287,10 +292,10 @@ if __name__=='__main__':
                     for blk in equivClass:
                         ind += 1
                         tmpAll = countAllBlocks(blk)
-                        tmpComp, tmpGeneric = countComponents(blk)
+                        tmpComp, tmpGeneric = mus.countComponents(blk)
 
                         if shouldPrint and tmpAll > 30:
-                            print prettyPrint(blk)
+                            print mus.prettyPrint(blk)
                             shouldPrint = False
                         if tmpAll > 5:
                             totalBlocks += 1
@@ -309,7 +314,7 @@ if __name__=='__main__':
                                 if tipe != "global_declaration" and k == "declaration":
                                     decls.append({"type": tipe,
                                                   "kind": k,
-                                                  "name": "\"" + getName(blk) + "\"",
+                                                  "name": "\"" + mus.getName(blk) + "\"",
                                                   "screen": codeset.screenName,
                                                   "programmer": eq.programmerName,
                                                   "project":  "\"" + eq.projectName + "\"",
@@ -323,12 +328,7 @@ if __name__=='__main__':
                                         declTypeKinds[k] = {}
                                     if tipe not in declTypeKinds[k]:
                                         declTypeKinds[k][tipe] = {}
-                                    #if k in declTypeKinds:
-                                    #    if tipe not in declTypeKinds[k]:
-                                    #        declTypeKinds[k][tipe] = {}
-                                    #else:
-                                    #    declTypeKinds[k] = {}
-                                    #    declTypeKinds[k][tipe] = {}
+                                    
                                     declTypeKinds[k][tipe]['num'] = 1
                                     declTypeKinds[k][tipe]['all'] = tmpAll
                                     declTypeKinds[k][tipe]['comp'] = tmpComp
@@ -347,22 +347,16 @@ if __name__=='__main__':
 
                                 if k not in nonComponentBlockTypesKinds:
                                     nonComponentBlockTypesKinds[k] = {}
+
                                 if tipe not in nonComponentBlockTypesKinds[k]:
                                     nonComponentBlockTypesKinds[k][tipe] = 1
                                 else:
                                     nonComponentBlockTypesKinds[k][tipe] += 1
-                                #if k in nonComponentBlockTypesKinds:
-                                #    if tipe in nonComponentBlockTypesKinds[k]:
-                                #        nonComponentBlockTypesKinds[k][tipe] += 1
-                                #    else:
-                                #        nonComponentBlockTypesKinds[k][tipe] = 1
-                                #else:
-                                #    nonComponentBlockTypesKinds[k] = {}
-                                #    nonComponentBlockTypesKinds[k][tipe] = 1
+                                
                                 topBlocksWithNoComps += 1
                                 
                             if ind % logEvery == 0:
-                                logwrite(eq.identity() + "::" + equivClass.getName() +  ":: all, comp: " + str(allCount) + ", " + str(compCount))
+                                mus.logwrite(eq.identity() + "::" + equivClass.getName() +  ":: all, comp: " + str(allCount) + ", " + str(compCount))
                                 equivClass.showCorrespondence()
             #if greaterThanFive:
             scrn = codeset.screenName
@@ -378,15 +372,15 @@ if __name__=='__main__':
     print compCount, allCount, topBlocksWithNoComps, totalBlocks, numBlocksWithKind
     print totalNumBlocksBesidesGlobalDecls, totalNumCompBlocksWOGlobalDecls
 
-    print prettyPrint(nonComponentBlockTypes)
-    print prettyPrint(kindsDict)
-    print prettyPrint(nonComponentBlockTypesKinds)
+    print mus.prettyPrint(nonComponentBlockTypes)
+    print mus.prettyPrint(kindsDict)
+    print mus.prettyPrint(nonComponentBlockTypesKinds)
 
     declarationTypesDictLoc = os.path.join(txtDirectory, analysisType + "declarationtypesdict.txt")
     procedureNamesLoc = os.path.join(txtDirectory, analysisType + "procedurenames.txt")
 
     with open(declarationTypesDictLoc, "w") as f:
-        f.write(prettyPrint(declTypeKinds))
+        f.write(mus.prettyPrint(declTypeKinds))
         f.flush()
 
     with open(procedureNamesLoc, "w") as f:
@@ -397,6 +391,9 @@ if __name__=='__main__':
     declarationFactsLoc = os.path.join(csvDirectory, analysisType + "declfacts.csv")
     dupesLoc = os.path.join(csvDirectory, analysisType + "-dupes.csv")
     equivclassDupesLoc = os.path.join(csvDirectory, analysisType + "-ec_dupes.csv")
+
+    print declarationFactsLoc, dupesLoc, equivclassDupesLoc
+    
     with open(declarationFactsLoc, "w") as f:
         cols = ["type", "kind", "name", "screen", "programmer", "project", "numBlocks", "numCompBlocks", "numDupes"]
         declCSVLines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in decls])
