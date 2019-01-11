@@ -2,7 +2,8 @@ import json
 import os
 import datetime
 
-from equivalenceclasses import *
+# Apparently this import line was just sitting here doing noTHING
+#from equivalenceclasses import *
 
 logStartTime = None
 logPrefix = 'jail2Audrey'
@@ -339,7 +340,7 @@ def size(b):
   return total
 
 
-# [2018/07/13] comparse all of the blocks against each other, while
+# [2018/07/13] compares all of the blocks against each other, while
 # also accounting for never comparing the same pair twice.
 def compareAllBlocks(blocks):
   #seen = []
