@@ -16,7 +16,8 @@ import datetime
 
 
 # [2019/01/11] The "libraries" that I made of helper functions for this
-from equivalenceclasses import *
+# from equivalenceclasses import *
+import equivalenceclasses as eclasses
 import myutils as mus
 #from myutils import *
 from findmissing import *
@@ -180,11 +181,11 @@ def jailToEquivs(jailLocation):
                     code.append(blks)
                     onlyUsedNames.append(name)
         #             screen names --> vvvvvvvvvvvvv
-        equivs.append(ProjectSet(code, onlyUsedNames, projName, userID))
+        equivs.append(eclasses.ProjectSet(code, onlyUsedNames, projName, userID))
         #                                     the user's id --> ^^^^^^^
         MyNum.num += 1
         if MyNum.num % printMessagesEverySoOften == 0:
-            logwrite("equivify() in jailToEquivs()::" + str(MyNum.num) + ": " + os.path.join(usersDir, userID, projName))
+            mus.logwrite("equivify() in jailToEquivs()::" + str(MyNum.num) + ": " + os.path.join(usersDir, userID, projName))
     if len(bigDirs) == 0:
         files = getFileNames(jailLocation)
         for f in files:
@@ -202,13 +203,13 @@ def jailToEquivs(jailLocation):
                     for s in screens:
                         if isinstance(jail['screens'][s]['bky'], dict):
                             code.append(jail['screens'][s]['bky']['topBlocks'])
-                    equivs.append(ProjectSet(code, f, littledir))
+                    equivs.append(eclasses.ProjectSet(code, f, littledir))
                     num += 1
                     if num % printMessagesEverySoOften == 0:
-                        logwrite(str(num) + " " + str(equivs[num-1].numScreens()))'''
-    logwrite("jailToEquivs():: Number of generics: " + str(totalGenerics))
-    logwrite("jailToEquivs():: Total number of blocks in handlers: " + str(totalHandlerBlocks))
-    logwrite("jailToEquivs():: Total number of component blocks: " + str(totalComponents))
+                        mus.logwrite(str(num) + " " + str(equivs[num-1].numScreens()))'''
+    mus.logwrite("jailToEquivs():: Number of generics: " + str(totalGenerics))
+    mus.logwrite("jailToEquivs():: Total number of blocks in handlers: " + str(totalHandlerBlocks))
+    mus.logwrite("jailToEquivs():: Total number of component blocks: " + str(totalComponents))
     return equivs
 
 
@@ -220,13 +221,13 @@ def dupesByEquivsObject(project, projectSet, equivClass):
         "name": "" if equivClass.size() == 0 else "\"" + mus.getName(equivClass.members[0]) + "\"",
         "type": "" if equivClass.size() == 0 else equivClass.members[0]["*type"],
         "kind": "" if equivClass.size() == 0 else equivClass.members[0]["kind"],
-        "size": "0" if equivClass.size() == 0 else str(countAllBlocks(equivClass.members[0])),
+        "size": "0" if equivClass.size() == 0 else str(mus.countAllBlocks(equivClass.members[0])),
         "requiresGenerics": str(equivClass.needsGenerics())
     }
 
                         
 #def zipFileProcessFunction(archFileName, archFile):
-#    logwrite(archFileName)
+#    mus.logwrite(archFileName)
 
 #def getEquivsFromZips(location):
 #    zipFileNames = getFileNames(location)
@@ -250,7 +251,7 @@ if __name__=='__main__':
     mus.iterateOverProjectSets(equivs, mus.countAllBlocksWrapper)
 
     for k,v in tagsSeen.iteritems():
-        logwrite(k + ": " + ", ".join(v))
+        mus.logwrite(k + ": " + ", ".join(v))
     #equivs = jailToEquivs("10kjails")
 
     allCount = 0
@@ -291,7 +292,7 @@ if __name__=='__main__':
                 if equivClass.size() > 0:
                     for blk in equivClass:
                         ind += 1
-                        tmpAll = countAllBlocks(blk)
+                        tmpAll = mus.countAllBlocks(blk)
                         tmpComp, tmpGeneric = mus.countComponents(blk)
 
                         if shouldPrint and tmpAll > 30:
