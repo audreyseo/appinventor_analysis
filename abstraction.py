@@ -20,7 +20,8 @@ import datetime
 import equivalenceclasses as eclasses
 import myutils as mus
 #from myutils import *
-from findmissing import *
+import findmissing as fm
+#from findmissing import *
 
 import zipUtils as zu
 
@@ -128,7 +129,7 @@ totalHandlerBlocks = 0
 totalComponents = 0
 def jailToEquivs(jailLocation):
     printMessagesEverySoOften = 10000
-    bigDirs = getDirectories(jailLocation)
+    bigDirs = fm.getDirectories(jailLocation)
     equivs = []
     global totalGenerics
     global totalHandlerBlocks
@@ -187,14 +188,14 @@ def jailToEquivs(jailLocation):
         if MyNum.num % printMessagesEverySoOften == 0:
             mus.logwrite("equivify() in jailToEquivs()::" + str(MyNum.num) + ": " + os.path.join(usersDir, userID, projName))
     if len(bigDirs) == 0:
-        files = getFileNames(jailLocation)
+        files = fm.getFileNames(jailLocation)
         for f in files:
             zu.withUnzippedFiles(os.path.join(jailLocation, f), archivedFiles)
     else:
         for bigdir in bigDirs:
-            littledirs = getDirectories(os.path.join(jailLocation, bigdir))
+            littledirs = fm.getDirectories(os.path.join(jailLocation, bigdir))
             for littledir in littledirs:
-                files = getFileNames(os.path.join(jailLocation, bigdir, littledir))
+                files = fm.getFileNames(os.path.join(jailLocation, bigdir, littledir))
                 for f in files:
                     unarchivedFiles(bigdir, littledir, f)
                     '''jail = getJail(os.path.join(jailLocation, bigdir, littledir, f))
@@ -230,7 +231,7 @@ def dupesByEquivsObject(project, projectSet, equivClass):
 #    mus.logwrite(archFileName)
 
 #def getEquivsFromZips(location):
-#    zipFileNames = getFileNames(location)
+#    zipFileNames = fm.getFileNames(location)
 #    for zf in zipFileNames:
 #        zu.withUnzippedFiles(os.path.join("46kjailzips", zf), zipFileProcessor)                    
 if __name__=='__main__':
