@@ -1,4 +1,6 @@
-from myutils import *
+import myutils as mus
+
+#from myutils import *
 
 def equivalenceClassify(blocks, screenName=None):
   size = len(blocks)
@@ -6,7 +8,7 @@ def equivalenceClassify(blocks, screenName=None):
 
   for i in range(size-1):
     for j in range(i + 1, size):
-      if equivalent(blocks[i], blocks[j]):
+      if mus.equivalent(blocks[i], blocks[j]):
         #print i, j
         blockset.addPair(blocks[i], blocks[j])
   return blockset
@@ -52,11 +54,11 @@ class EquivalenceClass:
 
   def getName(self, index=0):
     if index < self.size():
-      return self.screen + "|" + getName(self.members[index])
+      return self.screen + "|" + mus.getName(self.members[index])
     return ""
   def numBlocks(self):
     if self.size() > 0:
-      return countAllBlocks(self.members[0])
+      return mus.countAllBlocks(self.members[0])
     return 0
   
   def size(self):
@@ -65,7 +67,7 @@ class EquivalenceClass:
   def numBlocks(self):
     if self.size() == 0:
       return 0
-    return countAllBlocks(self.members[0])
+    return mus.countAllBlocks(self.members[0])
 
   def largeEnough(self):
     return self.numBlocks() > 5
@@ -88,10 +90,10 @@ class EquivalenceClass:
       self.members.extend(other.members)
 
   def __str__(self):
-    return "{" + ", ".join(map(lambda x: getName(x), self.members)) + "}"
+    return "{" + ", ".join(map(lambda x: mus.getName(x), self.members)) + "}"
 
   def dump(self):
-    return prettyPrint(self.members)
+    return mus.prettyPrint(self.members)
 
   def findComponentCorrespondence(self):
     self.corrmatrix = []
@@ -100,7 +102,7 @@ class EquivalenceClass:
       for j in range(i):
         self.corrmatrix[i].append(0)
       for j in range(i, self.size()):
-        self.corrmatrix[i].append(numCompBlocksInCommon(self.members[i], self.members[j]))
+        self.corrmatrix[i].append(mus.numCompBlocksInCommon(self.members[i], self.members[j]))
 
   def showCorrespondence(self):
     for i in range(len(self.corrmatrix)):
@@ -163,13 +165,13 @@ class CodeSet:
   def hasKey(self, code):
     if isinstance(code, str):
       return code in self.codeDict
-    name = getName(code)
+    name = mus.getName(code)
     return name in self.codeDict
 
   def getIndex(self, code):
     if isinstance(code, str):
       return self.codeDict[code]
-    name = getName(code)
+    name = mus.getName(code)
     if self.hasKey(name):
       return self.codeDict[name]
     return -1
@@ -179,15 +181,15 @@ class CodeSet:
     if isinstance(code, str):
       name = code
     else:
-      name = getName(code)
+      name = mus.getName(code)
     if isinstance(other, int):
       self.codeDict[name] = other
     elif self.getIndex(other) != -1:
       self.codeDict[name] = self.getIndex(other)
     
   def addPair(self, codeA, codeB):
-    nameA = getName(codeA)
-    nameB = getName(codeB)
+    nameA = mus.getName(codeA)
+    nameB = mus.getName(codeB)
     
     if not (self.hasKey(codeA) or self.hasKey(codeB)):
       self.classes.append(EquivalenceClass(codeA, codeB, self.screenName))

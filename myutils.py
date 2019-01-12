@@ -496,5 +496,10 @@ def iterateOverProjectSets(ps, func):
           for blk in equivClass:
             func(eq, blk)
 
+# This is really bad, but I'm not exactly sure why I made this function.
+# It was probably because I pass it to a different function so that it
+# can act on it, and this other function wants to put in two parameters:
+#     eq: equivalence class, probably
+#     blk: block.
 def countAllBlocksWrapper(eq, blk):
   countAllBlocks(blk)
