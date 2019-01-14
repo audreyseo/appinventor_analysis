@@ -3,6 +3,8 @@
 
     Finds the .aia files that don't have corresponding jail files, given
     a location with project files and a location with jail files to compare.
+
+    It also comprises a lot of useful stuff for file io.
 '''
 
 import os
@@ -110,6 +112,20 @@ def compareFiles(aiaDir, jailDir):
       mu.logwrite("compareFiles:: # of checked aias: " + str(index))
   return aiaFilesOnly
 
+
+def iterateThroughAllJail(jailLocation, func, jailHolder):
+  printMessagesEvery = 10000
+  bigDirs = fm.getDirectories(jailLocation)
+
+  if len(bigDirs) > 0:
+    for big in bigDirs:
+      littleDirs = getDirectories(os.path.join(jailLocation, big))
+      for little in littleDirs:
+        files = getFileNames(os.path.join(jailLocation, big, little))
+        for f in files:
+          func(bigdir, littledir, f, jailHolder)
+  else:
+    mu.logwrite("findmissing.py::iterateThroughAllJAil: No big directories found!")
 
 if __name__=='__main__':
   mu.logFileName = "*whatever*"

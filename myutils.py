@@ -36,6 +36,22 @@ def logwrite (msg):
     if printMessagesToConsole:
       print(timedMsg) 
     logFile.write(timedMsg + "\n")
+
+# [2019/01/14] Originally in abstraction.py, moved here since
+# it's useful for the majority of analyses.
+# It originally took a relative path or an absolute path, but
+# it seems neither really mattered after all.
+def getJail(jailLocation):
+  #dirName = os.path.dirname
+  # Upon further inspection, it appears that this line of code was not used at all?!?!?!
+  #path = jailLocation if os.path.isabs(jailLocation) else os.path.join(dirName, jailLocation)
+    jail = ""
+    with open(jailLocation, "r") as f:
+        jail = json.load(f)
+    return jail
+
+
+
 # [2018/07/13] If a block is a math_compare, then it returns
 # the mathematical symbol for what its operation is.
 def compareOp(b):
@@ -399,6 +415,36 @@ def countSomething(block, func):
       for b in block[key]:
         countSomething(b, func)
 
+def isADictionary(thing):
+  return isinstance(thing, dict)
+
+# [2019/01/14] Wanted to be able to count things more simply
+def countAndRecord(block, func, records):
+  ''' block: some kind of object containing jail
+      func: a function that takes a block and a dictionary
+      records: some kind of dictionary/object that will containing the resulting data
+  '''
+  if not isADictionary(block):
+    return
+  if isDisabled(block):
+    return
+  typeKey = '*type'
+  tagsToCheck = ['test', '~bodyExp']
+
+  for tag in tagsToCheck:
+    if tag in block:
+      countAndRecord(block[tag], func, records)
+
+  if typeKey in block:
+    # it's a block
+    func(block, records)
+  blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
+
+  for key in blockListKeys:
+    if key in block:
+      for b in block[key]:
+        countAndRecord(b, func, records)
+
 def countGenerics(block):
   mydict = {"total": 0}
   def countFunction(blk):
@@ -417,6 +463,7 @@ def countBlocksInside(block):
   count = countAllBlocks(block)
   return count - 1 if count > 0 else 0
 
+# Finds the total number of blocks
 def countAllBlocks(block):
   global tagsSeen
   if not isinstance(block, dict):

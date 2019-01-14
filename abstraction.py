@@ -30,13 +30,6 @@ dirName = os.path.dirname(os.path.realpath(__file__))
 
 tagsSeen = {}
 
-def getJail(jailLocation):
-    global dirName
-    path = jailLocation if os.path.isabs(jailLocation) else os.path.join(dirName, jailLocation)
-    jail = ""
-    with open(jailLocation, "r") as f:
-        jail = json.load(f)
-    return jail
 
 
 def fuzzify(blk, depth=0):
@@ -160,7 +153,7 @@ def jailToEquivs(jailLocation):
                     totalComponents += comp
     """
     def unarchivedFiles(usersDir, userID, projName):
-        jail = getJail(os.path.join(jailLocation, usersDir, userID, projName))
+        jail = mus.getJail(os.path.join(jailLocation, usersDir, userID, projName))
         equivify(jail, usersDir, userID, projName)
 
     def archivedFiles(fileName, fileArchive):
@@ -198,7 +191,7 @@ def jailToEquivs(jailLocation):
                 files = fm.getFileNames(os.path.join(jailLocation, bigdir, littledir))
                 for f in files:
                     unarchivedFiles(bigdir, littledir, f)
-                    '''jail = getJail(os.path.join(jailLocation, bigdir, littledir, f))
+                    '''jail = mus.getJail(os.path.join(jailLocation, bigdir, littledir, f))
                     screens = jail['*Names of Screens']
                     code = []
                     for s in screens:
