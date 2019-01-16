@@ -115,7 +115,7 @@ def compareFiles(aiaDir, jailDir):
 
 def iterateThroughAllJail(jailLocation, func, jailHolder):
   printMessagesEvery = 10000
-  bigDirs = fm.getDirectories(jailLocation)
+  bigDirs = getDirectories(jailLocation)
 
   if len(bigDirs) > 0:
     for big in bigDirs:
@@ -123,7 +123,7 @@ def iterateThroughAllJail(jailLocation, func, jailHolder):
       for little in littleDirs:
         files = getFileNames(os.path.join(jailLocation, big, little))
         for f in files:
-          func(bigdir, littledir, f, jailHolder)
+          func(big, little, f, jailHolder)
   else:
     mu.logwrite("findmissing.py::iterateThroughAllJAil: No big directories found!")
 
