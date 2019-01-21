@@ -312,15 +312,25 @@ def getActualColorType(b):
       c = b[colorKey]
 
       if t in actualColors:
+
+        # [2019/01/20] Switched around so that we just care if it's
+        # a color or not.
+        return "color_value"
+        '''
         if c == actualColors[t]:
           return t
         elif c in actualColors.values():
           return actualColors.keys()[actualColors.values().index(c)]
-        return "custom_color"
+        # [2019/01/20] Used to be "custom_color", but then it would
+        # look like not a color type block to my function for
+        # finding color-type blocks. It was also inconsistent with
+        # the renderColorNames function below.
+        return "color_custom"
+        '''
       return t
     if isColorBlock(b):
       return b[typeKey]
-  return "dunno what happened."
+  return "myutils::getActualColorType: no type key in block!"
 
 
 # [2019/01/16] Renders the name of a color block correctly,
@@ -335,6 +345,10 @@ def renderColorNames(b):
       t = b[typeKey]
       c = b[colorKey]
       if t in actualColors:
+        # [2019/01/20] Just changed it to simply changing this to
+        # "color_value" type instead of a specific color
+        return "color_value"
+        '''
         val = actualColors[t]
         if c == val:
           return t
@@ -342,9 +356,10 @@ def renderColorNames(b):
           return actualColors.keys()[actualColors.values().index(c)]
         else:
           return "color_custom:" + c
+        '''
       else:
         return t
-  return "dunno what happened here."
+  return "myutils::renderColorNames: no type key in block!"
         
       
 
@@ -546,6 +561,32 @@ def countAndRecord(block, func, records):
       for b in block[key]:
         countAndRecord(b, func, records)
 
+def countAndRecordWithDepth(block, func, records, depth=0):
+  if not isADictionary(block):
+    return
+  if isDisabled(block):
+    return
+  typeKey = '*type'
+  tagsToCheck = ['test', '~bodyExp']
+
+  for tag in tagsToCheck:
+    if tag in block:
+      countAndRecordWithDepth(block[tag], func, records, float(depth) + 0.5)
+
+  if typeKey in block:
+    func(block, records, depth)
+
+  blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
+  
+
+  for key in blockListKeys:
+    if key in block:
+      newDepth = depth + 1
+      if key == "~args":
+        newDepth = float(newDepth) - 0.5
+      for b in block[key]:
+        countAndRecordWithDepth(b, func, records, newDepth)
+        
 def countGenerics(block):
   mydict = {"total": 0}
   def countFunction(blk):

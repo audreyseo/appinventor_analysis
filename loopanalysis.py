@@ -17,11 +17,29 @@ import zipUtils as zu
 
 thisDirectory = os.path.dirname(os.path.realpath(__file__))
 usersKey = "usersIDs"
+def getType(block):
+  typeKey = "*type"
+  if typeKey in block:
+    tipe = block[typeKey]
+    if mus.isColorBlock(block):
+      oldTipe = tipe
+      tipe = mus.getActualColorType(block)
+      #if oldTipe != tipe:
+      #  mus.logwrite("loopanalysis::countKindsOfBlocks::getType: {} to {}".format(oldTipe, tipe))
+    return tipe
+  return "loopanalysis::getType: block does not have type!"
+
+def strDepth(depth):
+  if isinstance(depth, float):
+    return "{:.1f}".format(depth)
+  return str(depth)
 
 def countKindsOfBlocks(block):
   # Returns a dictionary with various counts of different kinds of blocks
+  # [2019/01/16] Modified to make it so that it returns the counts of
+  # different kinds of blocks designated by depth
   numBlocks = mus.countBlocksInside(block)
-  if numBlocks < 5:
+  if numBlocks < 10:
     return {
       "note": "less than five blocks inside this block."
       }
@@ -33,21 +51,37 @@ def countKindsOfBlocks(block):
       if mus.isColorBlock(blk):
         oldTipe = tipe
         tipe = mus.getActualColorType(blk)
-        if oldTipe != tipe:
-          mus.logwrite("loopanalysis::countKindsOfBlocks::kindCounter: {} to {}".format(oldTipe, tipe))
+        #if oldTipe != tipe:
+        #  mus.logwrite("loopanalysis::countKindsOfBlocks::kindCounter: {} to {}".format(oldTipe, tipe))
       if tipe not in record:
         record[tipe] = 0
       record[tipe] += 1
 
-  recordsDictionary = {}
-  mus.countAndRecord(block, kindCounter, recordsDictionary)
+  def kindCounterWithDepth(blk, record, depth):
+    typeKey = "*type"
+    if typeKey in blk:
+      tipe = getType(blk)
+      depthString = strDepth(depth)
+      if depthString not in record:
+        record[depthString] = {}
+      if tipe not in record[depthString]:
+        record[depthString][tipe] = 0
+      record[depthString][tipe] += 1
+        
 
-  #print mus.prettyPrint(recordsDictionary)
+  recordsDictionary = {}
+  #mus.countAndRecord(block, kindCounter, recordsDictionary)
+  # [2019/01/16] This should record the depths of things
+  mus.countAndRecordWithDepth(block, kindCounterWithDepth, recordsDictionary)
+
+  #mus.logwrite(mus.prettyPrint(recordsDictionary))
 
   return recordsDictionary
 
 def removeEmptyScreens(jails):
+  global usersKey
   users = jails[usersKey]
+  usersToRemove = []
 
   for u in users:
     allScreensEmpty = True
@@ -61,7 +95,10 @@ def removeEmptyScreens(jails):
         jails[u].pop(proj, None)
     if allScreensEmpty:
       jails.pop(u, None)
-      jails[usersKey].remove(u)
+      usersToRemove.append(u)
+      
+  for u in usersToRemove:
+    jails[usersKey].remove(u)
       
 
 def combThroughJails(jailLocation):
@@ -80,19 +117,35 @@ def combThroughJails(jailLocation):
     jailHolder[userID][projName] = {}
     jailHolder[userID][projName]["jail"] = jail
     screenJail = jail["screens"]
+    blockLimit = 10
     for s in screens:
       jailHolder[userID][projName]["counts by screens"] = {}
       if "bky" in screenJail[s]:
         if mus.isADictionary(screenJail[s]["bky"]):
-          jailHolder[userID][projName]["counts by screens"][s] = {}
+          #jailHolder[userID][projName]["counts by screens"][s] = {}
           for block in screenJail[s]["bky"]["topBlocks"]:
             if not mus.isGlobalDeclaration(block):
               count = countKindsOfBlocks(block)
               if "note" not in count:
-                greaterThanFive = False
-                for key in count:
-                  greaterThanFive = greaterThanFive or count[key] >= 5
-                if greaterThanFive:
+                greaterThanLimit = False
+                # [2019/01/16] The version before adding depths
+                #for key in count:
+                #  greaterThanLimit = greaterThanLimit or count[key] >= 5
+
+                #[2019/01/16] The version with depths in account
+                for depth in count:
+                  #mus.logwrite(mus.prettyPrint(count[depth]))
+                  if not depth.endswith(".5") and not depth.endswith(".0"): 
+                    for key in count[depth]:
+                      #print key, count[depth][key]
+                      #bigEnough = count[depth][key] >= blockLimit
+                      #oldGreaterThanLimit = greaterThanLimit
+                      greaterThanLimit = greaterThanLimit or (count[depth][key] >= blockLimit)
+                      #if (not oldGreaterThanLimit) and greaterThanLimit:
+                      #  mus.logwrite(mus.prettyPrint(count))
+                if greaterThanLimit:
+                  if s not in jailHolder[userID][projName]["counts by screens"]:
+                    jailHolder[userID][projName]["counts by screens"][s] = {}
                   jailHolder[userID][projName]["counts by screens"][s][mus.getName(block)] = count
     
     jailHolder["totalCount"] += 1
