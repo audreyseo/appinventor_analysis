@@ -26,6 +26,11 @@ def getType(block):
       tipe = mus.getActualColorType(block)
       #if oldTipe != tipe:
       #  mus.logwrite("loopanalysis::countKindsOfBlocks::getType: {} to {}".format(oldTipe, tipe))
+    if mus.isComponentBlock(block):
+      oldTipe = tipe
+      tipe = mus.getComponentBlockType(block)
+      #if oldTipe != tipe:
+      #  mus.logwrite("loopanalysis::countKindsOfBlocks::getType: {} to {}".format(oldTipe, tipe))
     return tipe
   return "loopanalysis::getType: block does not have type!"
 
@@ -69,6 +74,9 @@ def countKindsOfBlocks(block):
       record[depthString][tipe] += 1
         
 
+  #recordsDictionary = {
+  #  "numBlocks": numBlocks
+  #}
   recordsDictionary = {}
   #mus.countAndRecord(block, kindCounter, recordsDictionary)
   # [2019/01/16] This should record the depths of things
@@ -120,6 +128,7 @@ def combThroughJails(jailLocation):
     blockLimit = 10
     for s in screens:
       jailHolder[userID][projName]["counts by screens"] = {}
+      jailHolder[userID][projName]["num blocks by screens"] = {}
       if "bky" in screenJail[s]:
         if mus.isADictionary(screenJail[s]["bky"]):
           #jailHolder[userID][projName]["counts by screens"][s] = {}
@@ -146,7 +155,10 @@ def combThroughJails(jailLocation):
                 if greaterThanLimit:
                   if s not in jailHolder[userID][projName]["counts by screens"]:
                     jailHolder[userID][projName]["counts by screens"][s] = {}
+                    jailHolder[userID][projName]["num blocks by screens"][s] = {}
                   jailHolder[userID][projName]["counts by screens"][s][mus.getName(block)] = count
+                  jailHolder[userID][projName]["num blocks by screens"][s][mus.getName(block)] = mus.countBlocksInside(block)
+                  
     
     jailHolder["totalCount"] += 1
     if jailHolder["totalCount"] % 1000 == 0:
@@ -160,10 +172,42 @@ def combThroughJails(jailLocation):
     for proj in jailStats[uid]:
       mus.logwrite(uid + " " + proj)
       mus.logwrite(mus.prettyPrint(jailStats[uid][proj]["counts by screens"]))
+  jailList = []
+  numProjs = 0
+  allBlocks = 0
+  numHandlers = 0
+  for uid in jailStats["usersIDs"]:
+    for proj in jailStats[uid]:
+      numProjs += 1
+      for screen in jailStats[uid][proj]["counts by screens"]:
+        for handler in jailStats[uid][proj]["counts by screens"][screen]:
+          numHandlers += 1
+          numBlocks = jailStats[uid][proj]["num blocks by screens"][screen][handler]
+          allBlocks += numBlocks
+          item = {}
+          item["programmer"] = uid
+          item["project"] = proj
+          item["screen"] = screen
+          item["handler"] = handler
+          item["numBlocks"] = str(numBlocks)
+          jailList.append(item)
+  mus.logwrite("numHandlers: " + str(numHandlers))
+  mus.logwrite("avgBlocks: " + str(float(allBlocks) / float(numHandlers)))
+  mus.logwrite("numProjects: " + str(numProjs))
+  return jailList
 
 
 
 if __name__=='__main__':
   mus.createLogFile()
   loc10k = "10kjails"
-  combThroughJails(loc10k)
+  jails = combThroughJails(loc10k)
+
+  possibleLoopsLocation = "possible_loops.csv"
+
+  with open(possibleLoopsLocation, "w") as f:
+    cols = ["programmer", "project", "screen", "handler", "numBlocks"]
+    csvlines = mus.makeCSVLines(cols, jails)
+    f.write(",".join(cols) + "\n")
+    f.write(csvlines)
+    f.flush()
