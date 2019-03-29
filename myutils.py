@@ -115,6 +115,18 @@ def isComponentBlock(block):
       return block['*type'].startswith("component")
   return False
 
+def isComponentEvent(block):
+  if isADictionary(block):
+    if hasTypeKey(block):
+      return block[getTypeKey()] == "component_event"
+  return False
+
+# [2019/03/27] Essentially for convenience, so that I don't have to
+#              remember what the type key actually is, just that it
+#              exists.
+def getTypeKey():
+  return "*type"
+
 def hasTypeKey(block):
   if isADictionary(block):
     return '*type' in block
@@ -124,6 +136,43 @@ def isGlobalDeclaration(block):
     if hasTypeKey(block):
       return block['*type'] == "global_declaration"
   return False
+
+def getBlockListKeys():
+  return ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
+
+def getTagsToCheck():
+  return ['test', '~bodyExp']
+
+
+"""Used for finding a comprehensive list of all of the component
+   blocks' names used in a given block.
+
+   Used in EquivalenceClass.isGenericifiable
+
+   Returns a set.
+"""
+def findCompBlocks(blk):
+  comps = set()
+  componentNameKeys = ["instance_name", "component_selector"]
+  if isComponentBlock(blk):
+    for name in componentNameKeys:
+      if name in blk:
+        comps.add(blk[name])
+        break
+  for tag in getTagsToCheck():
+    if tag in blk:
+      # Take the union of comps and the additional comps
+      comps.update(findCompBlocks(blk[tag]))
+  for key in getBlockListKeys():
+    if key in blk:
+      for i in range(len(blk[key])):
+        # Take the union of comps and the additional comps
+        comps.update(findCompBlocks(blk[key][i]))
+  return comps
+
+def getComponentBlockNameKeys():
+  # Returns the keys that hold the name of the particular component block
+  return ["instance_name", "component_selector"]
 
 def numCompBlocksInCommon(blockA, blockB):
   blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
@@ -147,7 +196,10 @@ def numCompBlocksInCommon(blockA, blockB):
         count += numCompBlocksInCommon(blockA[key][i], blockB[key][i])
   return count
 
-
+def smallDifference(setA, setB):
+  diffAB = setA.difference(setB)
+  diffBA = setB.difference(setA)
+  return len(diffAB) <= 1 and len(diffBA) <= 1
 
 def prettyPrint(obj):
   return json.dumps(obj, indent=2, separators=(',', ': '))
@@ -367,6 +419,20 @@ def isGeneric(b):
       return b["is_generic"] == "true"
   return False
 
+def checkTypeEquivalent(blockA, blockB):
+  return getBlockType(blockA) == getBlockType(blockB)
+
+def getBlockType(b):
+  if isComponentType(b):
+    return getComponentBlockType(b)
+  return getType(b)
+
+def getType(b):
+  typeKey = "*type"
+  if typeKey in b:
+    return b["*type"]
+  return None
+
 def getComponentBlockType(b):
   typeKey = '*type'
   if typeKey in b:
@@ -406,13 +472,21 @@ def getName(b):
       # it to this
       return (t.replace("_", " ") + ":" + b['NAME'].encode("utf-8")).encode("utf-8")
     elif t == 'component_event':
-      return getComponentType(b) + "$" + b['instance_name'] + "." + b['event_name']
+      if 'instance_name' in b:
+        if 'event_name' in b:
+          return getComponentType(b) + "$" + b['instance_name'] + "." + b['event_name']
+        return getComponentType(b) + "$" + b['instance_name'] + ".<UNKNOWN_EVENT_NAME>"
+      return getComponentType(b) + "$<UNKNOWN_INSTANCE_NAME>.<UNKNOWN_EVENT_NAME>"
     elif t == 'component_set' or t == 'component_get':
       name = b['set_or_get'].capitalize() + " " + getComponentType(b)
       if 'instance_name' in b:
-        return name + "$" + b['instance_name'] + "." + b['PROP']
+        if 'PROP' in b:
+          return name + "$" + b['instance_name'] + "." + b['PROP']
+        return name + "$" + b['instance_name'] + ".<UNKNOWN_PROP_NAME>"
       elif b['is_generic'] == 'true':
-        return "Generic" + name + "." + b['PROP']
+        if 'PROP' in b:
+          return "Generic" + name + "." + b['PROP']
+        return "Generic" + name
     elif t == 'component_method':
       name = getComponentType(b)
       method = b["method_name"]
@@ -423,18 +497,20 @@ def getName(b):
     elif t == 'logic_boolean':
       return "bool(" + b['BOOL'] + ")"
     elif t == 'text':
-      if b['TEXT'] == None:
-        return "text()"
-      return "text(" + b['TEXT'].encode('utf-8') + ")"
+      if 'TEXT' in b:
+        if b['TEXT'] == None:
+          return "text()"
+        return "text(" + (b['TEXT'] if len(b['TEXT']) < 20 else "...").encode('utf-8') + ")"
+      return "text"
     elif t == 'controls_if':
       return "if " + renderMathNames(b['~branches'][0]['test'])
     elif t.startswith('math'):
       mathName = renderMathNames(b)
-      logwrite("getName: {} to {}".format(t, mathName))
+      #logwrite("getName: {} to {}".format(t, mathName))
       return mathName
     elif isColorBlock(b):
       colorName = renderColorNames(b)
-      logwrite("getName: {} to {}".format(t, colorName))
+      #logwrite("getName: {} to {}".format(t, colorName))
       return colorName
     return t
   return b.encode('utf-8')
@@ -733,4 +809,5 @@ def makeCSVLines(columns, data):
   data: a list of Python objects/dictionaries that contain keys that are
         identical to names found in columns
   '''
-  return "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in columns])) for d in data])
+  strdata = [{colTag:str(d) for colTag,d in datum.iteritems()} for datum in data]
+  return "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in columns])) for d in strdata])

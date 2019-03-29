@@ -264,7 +264,8 @@ if __name__=='__main__':
     totalNumCompBlocksWOGlobalDecls = 0
     
     declTypeKinds = {}
-    
+    # equivalence class size, for generating frequency
+    ecSizes = []
     procedureReturns = []
 
     decls = []
@@ -283,12 +284,21 @@ if __name__=='__main__':
             for equivClass in codeset:
                 dupesByEC.append(dupesByEquivsObject(eq, codeset, equivClass))
                 equivClass.findComponentCorrespondence()
+                ecSizes.append({
+                    "screen": codeset.screenName,
+                    "programmer": eq.programmerName,
+                    "project": eq.projectName,
+                    "numberDuplicatedHandlers": str(equivClass.size()),
+                    "blockName": equivClass.getName()
+                })
                 if equivClass.size() > 0:
                     for blk in equivClass:
+                        
                         ind += 1
                         tmpAll = mus.countAllBlocks(blk)
                         tmpComp, tmpGeneric = mus.countComponents(blk)
-
+                        if "numBlocks" not in ecSizes[len(ecSizes)-1]:
+                            ecSizes[len(ecSizes) - 1]["numBlocks"] = str(tmpAll)
                         if shouldPrint and tmpAll > 30:
                             print mus.prettyPrint(blk)
                             shouldPrint = False
@@ -386,6 +396,7 @@ if __name__=='__main__':
     declarationFactsLoc = os.path.join(csvDirectory, analysisType + "declfacts.csv")
     dupesLoc = os.path.join(csvDirectory, analysisType + "-dupes.csv")
     equivclassDupesLoc = os.path.join(csvDirectory, analysisType + "-ec_dupes.csv")
+    ecSizesLoc = os.path.join(csvDirectory, analysisType + "-ec_sizes.csv")
 
     print declarationFactsLoc, dupesLoc, equivclassDupesLoc
     
@@ -409,3 +420,11 @@ if __name__=='__main__':
         f.write(",".join(cols) + "\n")
         f.write(csvlines)
         f.flush()
+
+    with open(ecSizesLoc, "w") as f:
+        cols = ["programmer", "project", "screen", "blockName", "numberDuplicatedHandlers", "numBlocks"]
+        csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in ecSizes])
+        f.write(",".join(cols) + "\n")
+        f.write(csvlines)
+        f.flush()
+        

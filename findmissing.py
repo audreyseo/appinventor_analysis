@@ -10,6 +10,7 @@
 import os
 import zipUtils as zu
 import myutils as mu
+import json
 
 def getDirectories(direct):
   tmp = os.listdir(direct)
@@ -113,11 +114,26 @@ def compareFiles(aiaDir, jailDir):
   return aiaFilesOnly
 
 
-def iterateThroughAllJail(jailLocation, func, jailHolder):
+def iterateThroughAllJail(jailLocation, func, jailHolder, backupFunction=None, start=None, stop=None):
   printMessagesEvery = 10000
   bigDirs = getDirectories(jailLocation)
-
+  #mu.logwrite(bigDirs)
+  def iterateThroughArchivedFiles(fileName, fileArchive):
+    jail = json.load(fileArchive)
+    splits = fileName.split("/")
+    if len(splits) >= 2:
+      if backupFunction != None:
+        backupFunction("", splits[0], splits[1], jailHolder, jail)
+      else:
+        func("", splits[0], splits[1], jailHolder)
+        mu.logwrite("findmissing.py::iterateThroughAllJail::iterateThroughArchivedFiles: backupFunction Was None!")
+    else:
+      mu.logwrite("findmissing.py::iterateThroughAllJail::iterateThroughArchivedFiles: splits was too short!" + " ".join(splits))
+  
   if len(bigDirs) > 0:
+    mu.logwrite("findmissing.py::iterateThroughAllJail: Found big directories.")
+    if start != None and stop != None:
+      bigDirs = [bigDirs[i] for i in range(max(0, start), min(stop, len(bigDirs)))]
     for big in bigDirs:
       littleDirs = getDirectories(os.path.join(jailLocation, big))
       for little in littleDirs:
@@ -125,7 +141,11 @@ def iterateThroughAllJail(jailLocation, func, jailHolder):
         for f in files:
           func(big, little, f, jailHolder)
   else:
-    mu.logwrite("findmissing.py::iterateThroughAllJAil: No big directories found!")
+    mu.logwrite("findmissing.py::iterateThroughAllJAil: No big directories found! Trying to find zip directories instead.")
+    files = getFileNames(jailLocation)
+    files = [files[i] for i in range(max(0, start), min(stop, len(files)))]
+    for f in files:
+      zu.withUnzippedFiles(os.path.join(jailLocation, f), iterateThroughArchivedFiles)
 
 if __name__=='__main__':
   mu.logFileName = "*whatever*"

@@ -51,7 +51,14 @@ class EquivalenceClass:
       self.add(a)
     elif not self.isAMember(b):
       self.add(b)
+  def getBlock(self, index=0):
+    if index < self.size():
+      return self.members[index]
+    return None
 
+  def head(self):
+    return self.getBlock(index=0)
+  
   def getName(self, index=0):
     if index < self.size():
       return self.screen + "|" + mus.getName(self.members[index])
@@ -123,6 +130,25 @@ class EquivalenceClass:
           return True
     return False
 
+  # [audrey, 2019-03-27] added for the VLHCC paper
+  def isGenericifiable(self):
+    compBlockSets = [mus.findCompBlocks(blk) for blk in self]
+
+    for i in range(len(compBlockSets)-1):
+      for j in range(i, len(compBlockSets)):
+        diffA = compBlockSets[i].difference(compBlockSets[j])
+        diffB = compBlockSets[j].difference(compBlockSets[i])
+        if len(diffA) > 1:
+          return False
+        if len(diffB) > 1:
+          return False
+    return True
+  def getType(self):
+    first = self.head()
+    if first:
+      if mus.getTypeKey() in first:
+        return first[mus.getTypeKey()]
+    return "<NO TYPE KEY FOUND IN {}>".format(first)
   def __iter__(self):
     self.index = -1
     return self
@@ -132,8 +158,14 @@ class EquivalenceClass:
       raise StopIteration
     self.index += 1
     return self.members[self.index]
+
+  def everyPair(self):
+    return iter([(a, b) for a in self for b in self if a != b])
   
 class CodeSet:
+  """Contains all of the equivalence classes
+     associated with a particular
+     screen."""
   def __init__(self, screenName=None):
     self.classes = []
     self.codeDict = {}
@@ -252,6 +284,9 @@ class ProjectSet:
     self.index += 1
     return self.screenClasses[self.index]
 
-
+  def getScreenEquivBlockItems(self):
+    return iter([(screen, ec, blk) for screen in self for ec in screen for blk in ec])
+  def getScreenEquivItems(self):
+    return iter([(screen, ec) for screen in self for ec in screen])
   def identity(self):
     return self.programmerName + ":" + self.projectName + ("" if len(self.screenNames) == 0 else "(" + ",".join(self.screenNames) + ")")
