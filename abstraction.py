@@ -13,7 +13,7 @@ import copy
 import difflib
 
 import datetime
-
+import argparse
 
 # [2019/01/11] The "libraries" that I made of helper functions for this
 # from equivalenceclasses import *
@@ -228,11 +228,21 @@ def dupesByEquivsObject(project, projectSet, equivClass):
 #    for zf in zipFileNames:
 #        zu.withUnzippedFiles(os.path.join("46kjailzips", zf), zipFileProcessor)                    
 if __name__=='__main__':
+    parser = argparse.ArgumentParser(description="Run loop analysis")
+
+    parser.add_argument("--kind", action="store", type=int, choices=[10, 46], default=10, help="Choose which dataset to run analysis on, either 10 or 46. Defaults to 10.")
+
+    parser.add_argument("-s", "--start", action="store", type=int, default=-1, help="Which batch of users to start from (inclusive). Defaults to 0, values range from 0-46 for 46k. Only applies to the 46k dataset.")
+
+    parser.add_argument("-e", "--end", action="store", type=int, default=-1, help="Which batch of users to end with (exclusive). Defaults to 5, values range from 0-47 for 46k. Only applies to the 46k dataset.")
+
+    args = parser.parse_args()
+    print(args)
     mus.createLogFile()
     loc10k = "10kjails"
     loc46k = "46kjailzips"
     logEvery = 1000
-    analysisType = "10k"
+    analysisType = "10k" if args.kind == 10 else "46k"
     equivs = []
     csvDirectory = "testCSVs"
     txtDirectory = "testTXTs"

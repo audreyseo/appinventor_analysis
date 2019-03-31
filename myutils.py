@@ -70,8 +70,6 @@ def getJail(jailLocation):
         jail = json.load(f)
     return jail
 
-
-
 # [2018/07/13] If a block is a math_compare, then it returns
 # the mathematical symbol for what its operation is.
 def compareOp(b):
@@ -100,7 +98,29 @@ def isMathType(block):
     if '*type' in block:
       return block['*type'].startswith('math')
   return False
-
+def isBoolean(block):
+  if isADictionary(block):
+    if getTypeKey() in block:
+      tipe = block[getTypeKey()]
+      return tipe == "logic_boolean" or tipe == "logic_false"
+  return False
+def isLogicType(block):
+  typeKey = getTypeKey()
+  if isADictionary(block) and typeKey in block:
+    tipe = block[typeKey]
+    return tipe.startswith('logic')
+  return False
+def isColorType(block):
+  typeKey = getTypeKey()
+  if isADictionary(block) and typeKey in block:
+    return block[typeKey].startswith('color')
+  return False
+def isColorLiteral(block):
+  typeKey = getTypeKey()
+  if isADictionary(block) and typeKey in block:
+    tipe = block[typeKey]
+    return tipe != "color_make_color" and tipe != "color_split_color"
+  return False
 # [2018/07/16] helper function for determining whether
 # a block of type math is a function that is commutative
 def isCommutative(mathBlock):
@@ -220,7 +240,11 @@ def equivalent(a, b, depth=0):
   #print depth, ":", getName(a) + "|" + getName(b)
   if not (isinstance(a, dict) and isinstance(b,dict)):
     return False
-  if a['*type'] == b['*type']:
+  # [audrey, 2019/03/29] should actually check that these two
+  # blocks have equivalent types, including the particular property
+  # these two set, if they're a component_set kind of block.
+  if checkTypeEquivalent(a, b):
+    #if a['*type'] == b['*type']:
     #if a['*type'] == 'logic_boolean':
     #    if a['BOOL'] != b['BOOL']:
     #        print a['BOOL'], b['BOOL']
@@ -260,28 +284,31 @@ def equivalent(a, b, depth=0):
         return False
     # Check that the args of a and b are similar
     if argsKey in a and argsKey in b:
-      if isCommutative(a):
-        # then b is a commutative math type also because they have the same type
-        if a['items'] != b['items']:
-          return False
-        aSorted = sorted(a[argsKey])
-        bSorted = sorted(b[argsKey])
-        for i in range(len(a[argsKey])):
-          if not equivalent(a[argsKey][i], b[argsKey][i]):
-            return False
-        return True
-      else:
+      if len(a[argsKey]) == len(b[argsKey]):
+        if isCommutative(a):
+          # then b is a commutative math type also because they have the same type
+          if 'items' in a and 'items' in b:
+            if a['items'] != b['items']:
+              return False
+        
+          aSorted = sorted(a[argsKey])
+          bSorted = sorted(b[argsKey])
+          for i in range(len(a[argsKey])):
+            if not equivalent(a[argsKey][i], b[argsKey][i]):
+              return False
+          return True
+        else:
           #print "hey"
-          if len(a[argsKey]) == len(b[argsKey]):
-            for i in range(len(a[argsKey])):
-              #print a[argsKey][i]
-              #print b[argsKey][i]
-              tmp = equivalent(a[argsKey][i], b[argsKey][i], depth+1)
-              if not tmp:
-                return False
-              t = t and tmp
-          else:
-            return False
+          #if len(a[argsKey]) == len(b[argsKey]):
+          for i in range(len(a[argsKey])):
+            #print a[argsKey][i]
+            #print b[argsKey][i]
+            tmp = equivalent(a[argsKey][i], b[argsKey][i], depth+1)
+            if not tmp:
+              return False
+            t = t and tmp
+      else:
+        return False
     # Check that a and b have similar blocks contained within them
     if childBlocksKey in a and childBlocksKey in b:
       if len(a[childBlocksKey]) == len(b[childBlocksKey]):
@@ -419,18 +446,42 @@ def isGeneric(b):
       return b["is_generic"] == "true"
   return False
 
+
+# [audrey, 2019/03/29] Entirely for ensuring that the
+# equivalence checking function actually does what
+# I think it does, and doesn't accidentally consider
+# two types to be equal when they aren't.
 def checkTypeEquivalent(blockA, blockB):
   return getBlockType(blockA) == getBlockType(blockB)
 
+
+# [audrey, 2019/03/29]
+# Gets the actual type of the block, as a human might expect
+# it to be, i.e. where a less than "<" is not equivalent to
+# either a "<=" or a ">=" or an "="
 def getBlockType(b):
-  if isComponentType(b):
+  if isComponentBlock(b):
     return getComponentBlockType(b)
+  elif isLogicType(b):
+    if isBoolean(b):
+      # Fold "logic_boolean" and "logic_false" into the same thing
+      return "logic_boolean"
+  elif isColorType(b):
+    if isColorLiteral(b):
+      return "color_literal"
+  elif isMathType(b):
+    tipe = getType(b)
+    if tipe:
+      if tipe == "math_compare" or tipe == "math_on_list" or tipe == "math_bitwise":
+        if "OP" in  b:
+          return "math_" + b["OP"].lower()
+        return tipe
   return getType(b)
 
 def getType(b):
   typeKey = "*type"
   if typeKey in b:
-    return b["*type"]
+    tipe = b["*type"]
   return None
 
 def getComponentBlockType(b):
