@@ -454,6 +454,69 @@ def isGeneric(b):
 def checkTypeEquivalent(blockA, blockB):
   return getBlockType(blockA) == getBlockType(blockB)
 
+# [audrey, 2019/03/30] Created for the purposes of better differentiating different math types.
+def getMathType(b):
+  # All of the types that are grouped under "singles"
+  singles = ["math_single", "math_abs", "math_neg", "math_round", "math_ceiling", "math_floor"]
+  trig = ["math_trig", "math_cos", "math_tan"]
+  # All of the other math operations that we alo want to differentiate further
+  otherMathOperations = ["math_compare", "math_is_a_number", "math_on_list", "math_bitwise", "math_convert_angles", "math_convert_number", "math_divide"]
+  # Gives the appropriate math prefix to prepend onto the lowercased op given.
+  # Note: these all result in made-up types, that only exist to differentiate
+  # between types that we couldn't differentiate between before.
+  mathPrefix = {
+    "math_is_a_number": "math_is_",
+    "math_bitwise": "math_bitwise_",
+    "math_convert_number": "math_convert_",
+    "math_convert_angles": "math_convert_"
+  }
+  # Converts the names of these things to something that's a little bit more readable.
+  # It's necessary to go by the operation in this case, since the type is uncertain and
+  # could be any number of things.
+  opToSingle = {
+    "NEG": "math_neg",
+    "ABS": "math_abs",
+    "ROOT": "math_square_root", # [audrey, 2019/03/30] I made this up because otherwise there's no way to differentiate
+    "CEILING": "math_ceiling",
+    "FLOOR": "math_floor",
+    "LN": "math_natural_log", # [audrey, 2019/03/30] also made up this one, also it's misleading that it's the natural log according to this but the function is just called log??? hmmm?????
+    "EXP": "math_power_of_e", # [audrey, 2019/03/30] and this one
+    "ROUND": "math_round"
+  }
+  # get the plain type
+  tipe = getType(b)
+  if tipe: #if it's not None
+    if tipe in singles:
+      if "OP" in b:
+        return opToSingle[b["OP"]]
+      raise RuntimeError("myutils.py::getMathType(): no 'OP' key in math_single block!")
+    elif tipe in otherMathOperations or tipe in trig:
+      if "OP" in b:
+        # Use the generic prefix if there isn't a special one defined, else use the special one
+        return ("math_" if tipe not in mathPrefix else mathPrefix[tipe]) + b["OP"].lower()
+      raise RuntimeError("myutils.py::getMathType(): no 'OP' key in block, for other math_ op!")
+    # The type is OK to go as is
+    return tipe
+  return "<NO TYPE FOUND!>"
+# [audrey, 2019/03/30] Created for the purpose of properly differentiating logic block types.
+def getLogicType(b):
+  if isBoolean(b):
+    # Fold "logic_boolean" and "logic_false" into the same thing
+    return "logic_boolean"
+  else:
+    tipe = getType(b)
+    if tipe: # if type is not None
+      if tipe == "logic_operation":
+        if "OP" in b:
+          return "logic_operation_" + b["OP"].lower()
+        raise RuntimeError("myutils.py::getLogicType(): no 'OP' key in block, for logic_operation!")
+      elif tipe == "logic_compare":
+        if "OP" in b:
+          return "logic_compare_" + b["OP"].lower()
+        raise RuntimeError("myutils.py::getLogicType(): no 'OP' key in block, for logic_compare!")
+      # If it's none of these messed up options, then we should be good to go!
+      return tipe
+    raise RuntimeError("myutils.py::getLogicType(): NO TYPE FOUND!")
 
 # [audrey, 2019/03/29]
 # Gets the actual type of the block, as a human might expect
@@ -463,19 +526,18 @@ def getBlockType(b):
   if isComponentBlock(b):
     return getComponentBlockType(b)
   elif isLogicType(b):
-    if isBoolean(b):
-      # Fold "logic_boolean" and "logic_false" into the same thing
-      return "logic_boolean"
+    return getLogicType(b)
   elif isColorType(b):
     if isColorLiteral(b):
       return "color_literal"
   elif isMathType(b):
-    tipe = getType(b)
-    if tipe:
-      if tipe == "math_compare" or tipe == "math_on_list" or tipe == "math_bitwise":
-        if "OP" in  b:
-          return "math_" + b["OP"].lower()
-        return tipe
+    return getMathType(b)
+    #tipe = getType(b)
+    #if tipe:
+    #  if tipe == "math_compare" or tipe == "math_on_list" or tipe == "math_bitwise":
+    #    if "OP" in  b:
+    #      return "math_" + b["OP"].lower()
+    #    return tipe
   return getType(b)
 
 def getType(b):
