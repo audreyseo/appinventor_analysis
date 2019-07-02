@@ -489,12 +489,14 @@ def getMathType(b):
     if tipe in singles:
       if "OP" in b:
         return opToSingle[b["OP"]]
-      raise RuntimeError("myutils.py::getMathType(): no 'OP' key in math_single block!")
+      raise RuntimeError("myutils.py::getMathType(): no 'OP' key in math_single block! {}".format(b))
     elif tipe in otherMathOperations or tipe in trig:
       if "OP" in b:
         # Use the generic prefix if there isn't a special one defined, else use the special one
         return ("math_" if tipe not in mathPrefix else mathPrefix[tipe]) + b["OP"].lower()
-      raise RuntimeError("myutils.py::getMathType(): no 'OP' key in block, for other math_ op!")
+      # It appears that sometimes they don't have ops, which may be due to old versions of App Inventor.
+      return tipe
+      #raise RuntimeError("myutils.py::getMathType(): no 'OP' key in block, for other math_ op! {}".format(b))
     # The type is OK to go as is
     return tipe
   return "<NO TYPE FOUND!>"
@@ -509,14 +511,14 @@ def getLogicType(b):
       if tipe == "logic_operation":
         if "OP" in b:
           return "logic_operation_" + b["OP"].lower()
-        raise RuntimeError("myutils.py::getLogicType(): no 'OP' key in block, for logic_operation!")
+        raise RuntimeError("myutils.py::getLogicType(): no 'OP' key in block, for logic_operation! {}".format(b))
       elif tipe == "logic_compare":
         if "OP" in b:
           return "logic_compare_" + b["OP"].lower()
-        raise RuntimeError("myutils.py::getLogicType(): no 'OP' key in block, for logic_compare!")
+        raise RuntimeError("myutils.py::getLogicType(): no 'OP' key in block, for logic_compare! {}".format(b))
       # If it's none of these messed up options, then we should be good to go!
       return tipe
-    raise RuntimeError("myutils.py::getLogicType(): NO TYPE FOUND!")
+    raise RuntimeError("myutils.py::getLogicType(): NO TYPE FOUND! {}\ntype key in b?: {}".format(b, getTypeKey() in b))
 
 # [audrey, 2019/03/29]
 # Gets the actual type of the block, as a human might expect
@@ -543,7 +545,7 @@ def getBlockType(b):
 def getType(b):
   typeKey = "*type"
   if typeKey in b:
-    tipe = b["*type"]
+    return b["*type"]
   return None
 
 def getComponentBlockType(b):
