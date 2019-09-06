@@ -1,3 +1,5 @@
+# 2019/07/19: Lyn made changes for today's B&B 2019 genericization deadline
+# See [2019/07/19, lyn] notes below
 import myutils as mus
 
 #from myutils import *
@@ -77,7 +79,10 @@ class EquivalenceClass:
     return mus.countAllBlocks(self.members[0])
 
   def largeEnough(self):
-    return self.numBlocks() > 5
+    # [2019/07/09, lyn] this was reasonable for proceduralization,
+    # but not for removing duplicate handlers in the context of generic handlers.
+    # return self.numBlocks() > 5
+    return True
   
   def hasOverlap(self, other):
     for obj in self.members:
@@ -103,31 +108,43 @@ class EquivalenceClass:
     return mus.prettyPrint(self.members)
 
   def findComponentCorrespondence(self):
-    self.corrmatrix = []
-    for i in range(self.size()):
-      self.corrmatrix.append([])
-      for j in range(i):
-        self.corrmatrix[i].append(0)
-      for j in range(i, self.size()):
-        self.corrmatrix[i].append(mus.numCompBlocksInCommon(self.members[i], self.members[j]))
+    if len(self.corrmatrix) != self.size(): # [2019/08/01, lyn] Added this check; either it hasn't been calculated yet,
+                                            # or it was calculated before one or more new members
+                                            # were added to equivalence class
+      self.corrmatrix = []
+      for i in range(self.size()):
+        self.corrmatrix.append([])
+        for j in range(i):
+          self.corrmatrix[i].append(0)
+        for j in range(i, self.size()):
+          self.corrmatrix[i].append(mus.numCompBlocksInCommon(self.members[i], self.members[j]))
 
   def showCorrespondence(self):
+    # print "showCorrespondence for", self.getName() # [2019/07/19, lyn] for debugging
     for i in range(len(self.corrmatrix)):
       print " ".join(map(lambda x: str(x).ljust(4), self.corrmatrix[i]))
 
   def needsGenerics(self):
-    if self.corrmatrix == []:
-      self.findComponentCorrespondence()
+    # print "needsGenerics" # [2019/07/19, lyn] for debugging
+    # if self.corrmatrix == []:
+    #  self.findComponentCorrespondence()
+    # [2019/08/01, lyn] replaced the above two lines by the following,
+    # since changed findComponentCorrespondence itself to do memoization
+    self.findComponentCorrespondence()
+    # self.showCorrespondence() # [2019/07/19, lyn] for debugging
     allZero = True
     for i in range(self.size()):
       allZero = allZero and self.corrmatrix[i][i] == 0
     if allZero:
+      # print "needsGenerics returns False from allZero" # [2019/07/19, lyn] for debugging
       return False
     for i in range(self.size()-1):
       item = self.corrmatrix[i][i]
       for j in range(i + 1, self.size()):
         if item - 1 > self.corrmatrix[i][j]:
+          # print "needsGenerics returns True early" # [2019/07/19, lyn] for debugging
           return True
+    # print "needsGenerics returns False late" # [2019/07/19, lyn] for debugging
     return False
 
   # [audrey, 2019-03-27] added for the VLHCC paper
@@ -152,6 +169,26 @@ class EquivalenceClass:
   def __iter__(self):
     self.index = -1
     return self
+
+  # [2019/08/01, lyn] Added this 
+  def isSingleProcedureCall(self):
+    if self.size() < 2: # [2019/08/01, lyn] Should never be true!
+      return False
+    else:
+      handler = self.members[0]
+      if (not isinstance(handler, dict) 
+          or '*type' not in handler 
+          or handler['*type'] != 'component_event'
+          or '~bodyStm' not in handler):
+        print "***ERROR: handler not expected dict in isSingleProcedureCall"
+        return False
+      else: 
+        body = handler['~bodyStm']
+        if len(body) != 1 or '*type' not in body[0]:
+          return False
+        else:
+          stm = body[0]
+          return stm['*type'] == "procedures_callnoreturn"
 
   def next(self):
     if self.index == self.size() - 1:
@@ -249,6 +286,13 @@ class CodeSet:
     self.index += 1
     return self.classes[self.index]
 
+  # [2019/08/01, lyn] Added this. 
+  # Returns a pair of (1) maximum equiv class size and (2) maximum equiv class num blocks
+  def maxes(self): 
+    maxPair = (0, 0)
+    for equivClass in self: 
+      maxPair = mus.maxPairs(maxPair, (equivClass.size(), equivClass.numBlocks()))
+    return maxPair
 
 class ProjectSet:
   def __init__(self, blocks, screenNames=None, name=None, programmer=None):
@@ -290,3 +334,12 @@ class ProjectSet:
     return iter([(screen, ec) for screen in self for ec in screen])
   def identity(self):
     return self.programmerName + ":" + self.projectName + ("" if len(self.screenNames) == 0 else "(" + ",".join(self.screenNames) + ")")
+
+  # [2019/08/01, lyn] Added this. 
+  # Returns a pair of (1) maximum equiv class size and (2) maximum equiv class num blocks
+  def maxes(self): 
+    maxPair = (0, 0)
+    for codeSet in self: 
+      maxPair = mus.maxPairs(maxPair, codeSet.maxes())
+    return maxPair
+

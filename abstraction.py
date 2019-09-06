@@ -1,3 +1,5 @@
+# 2019/07/19: Lyn made changes for today's B&B 2019 genericization deadline
+# See [2019/07/19, lyn] notes below
 ''' abstraction.py
     Created on 2018/07/12 by Audrey Seo
 
@@ -208,6 +210,7 @@ def jailToEquivs(jailLocation):
 
 
 def dupesByEquivsObject(project, projectSet, equivClass):
+    # print project.programmerName, project.projectName # [2019/07/19, lyn]
     return {
         "programmer": project.programmerName,
         "project": "\"" + project.projectName + "\"",
@@ -241,6 +244,7 @@ if __name__=='__main__':
     mus.createLogFile()
     loc10k = "10kjails"
     loc46k = "46kjailzips"
+    # loc46k = "../../data/ai2_46K_prolific_users_deidentified_jails_00_00000" # [2019/07/19] lyn testing
     logEvery = 1000
     analysisType = "10k" if args.kind == 10 else "46k"
     equivs = []

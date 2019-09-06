@@ -1,3 +1,5 @@
+# 2019/07/19: Lyn made changes for today's B&B 2019 genericization deadline
+# See [2019/07/19, lyn] notes below
 import json
 import os
 import datetime
@@ -129,6 +131,33 @@ def isCommutative(mathBlock):
     return mathBlock['*type'] in commutatives
   return False
 
+# [2019/07/19, lyn] New helper function:
+def isProcedureCallType(block):
+  typeKey = getTypeKey()
+  if isADictionary(block) and typeKey in block:
+    tipe = block[typeKey]
+    return tipe in ['procedures_callnoreturn', 'procedures_callreturn']
+  else :
+    return False
+
+# [2019/07/19, lyn] New helper function:
+def isLexicaVariableType(block):
+  typeKey = getTypeKey()
+  if isADictionary(block) and typeKey in block:
+    tipe = block[typeKey]
+    return tipe in ['lexical_variable_get', 'lexical_variable_set']
+  else:
+    return False
+
+# [2019/07/19, lyn] New helper function:
+def isLocalDeclarationType(block):
+  typeKey = getTypeKey()
+  if isADictionary(block) and typeKey in block:
+    tipe = block[typeKey]
+    return tipe in ['local_declaration_statement','local_declaration_expression']
+  else:
+    return False
+
 def isComponentBlock(block):
   if isinstance(block, dict):
     if '*type' in block:
@@ -173,7 +202,8 @@ def getTagsToCheck():
 """
 def findCompBlocks(blk):
   comps = set()
-  componentNameKeys = ["instance_name", "component_selector"]
+  # componentNameKeys = ["instance_name", "component_selector"]
+  componentNameKeys = ["instance_name", "COMPONENT_SELECTOR", "component_selector"] # [2019/07/19, lyn] lyn capitalized 2nd entry (don't know if really necessary)
   if isComponentBlock(blk):
     for name in componentNameKeys:
       if name in blk:
@@ -192,7 +222,7 @@ def findCompBlocks(blk):
 
 def getComponentBlockNameKeys():
   # Returns the keys that hold the name of the particular component block
-  return ["instance_name", "component_selector"]
+  return ["instance_name", "COMPONENT_SELECTOR", "component_selector"] # [2019/07/19, lyn] lyn capitalized 2nd entry (don't know if really necessary)
 
 def numCompBlocksInCommon(blockA, blockB):
   blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
@@ -200,7 +230,8 @@ def numCompBlocksInCommon(blockA, blockB):
   count = 0
   
   if isComponentBlock(blockA) and isComponentBlock(blockB):
-    nameKeys = ["instance_name", "component_selector"]
+    # nameKeys = ["instance_name", "component_selector"]
+    nameKeys = ["instance_name", "COMPONENT_SELECTOR", "component_selector"] # [2019/07/19, lyn] lyn capitalized 2nd entry (don't know if really necessary)
     i = 0
     while count == 0 and i < len(nameKeys):
       name = nameKeys[i]
@@ -520,10 +551,15 @@ def getLogicType(b):
       return tipe
     raise RuntimeError("myutils.py::getLogicType(): NO TYPE FOUND! {}\ntype key in b?: {}".format(b, getTypeKey() in b))
 
+
+
+
 # [audrey, 2019/03/29]
 # Gets the actual type of the block, as a human might expect
 # it to be, i.e. where a less than "<" is not equivalent to
 # either a "<=" or a ">=" or an "="
+# 
+# [2019/07/19, lyn] previous version was too lenient on certain types of nodes. 
 def getBlockType(b):
   if isComponentBlock(b):
     return getComponentBlockType(b)
@@ -540,7 +576,43 @@ def getBlockType(b):
     #    if "OP" in  b:
     #      return "math_" + b["OP"].lower()
     #    return tipe
-  return getType(b)
+  # [2019/07/19, lyn] for equivalence purposes, only consider procedure calls to be 
+  # the same for the same proc name!
+  elif isProcedureCallType(b):
+    tipe = getType(b) 
+    if isADictionary(b) and "PROCNAME" in b:
+      return tipe + "_" + b["PROCNAME"]
+    else:
+      return tipe
+  # [2019/07/19, lyn] for equivalence purposes, only consider lexical var ops to be 
+  # the same for the same var name!
+  elif isLexicaVariableType(b):
+    tipe = getType(b) 
+    if isADictionary(b) and "VAR" in b:
+      varName = b["VAR"]
+      if varName.startswith('global'): 
+        # Treat globals specially, else empirically we lose many opportunities for 
+        # proceduralization and genericization. 
+        return tipe + "_global" # <== Treat globals specially; all globals considered "the same"
+        # return tipe + '_' + '_'.join(varName.split()) # [2019/08/01, lyn] This version does *not* treat globals specially
+      else:
+        return tipe + "_" + varName
+    else:
+      return tipe
+  # [2019/07/19, lyn] for equivalence purposes, only consider local decls to 
+  # be the same if they declare the same names in the same order!
+  elif isLocalDeclarationType(b):
+    tipe = getType(b) 
+    if isADictionary(b) and "params" in b:
+      params = b["params"]
+      if len(params) > 0: 
+        return tipe + '_' + '_'.join(params)
+      else:
+        return tipe
+    else:
+      return tipe
+  else:
+    return getType(b)
 
 def getType(b):
   typeKey = "*type"
@@ -548,13 +620,14 @@ def getType(b):
     return b["*type"]
   return None
 
+# [2019/07/19, lyn] previous version didn't handle component_component_block correctly
 def getComponentBlockType(b):
   typeKey = '*type'
   if typeKey in b:
     t = b['*type']
     if isComponentBlock(b):
-      compType = getComponentType(b) + "."
       if t.endswith("event"):
+        compType = getComponentType(b) + "." # [2019/07/19, lyn] moved this line down.
         return compType + b['event_name']
       elif "set_or_get" in b:
         name = b['set_or_get'].capitalize() + " " + getComponentType(b)
@@ -564,10 +637,12 @@ def getComponentBlockType(b):
       elif "method_name" in b:
         name = getComponentType(b)
         method = b['method_name']
-
         if isGeneric(b):
           name = "Generic " + name
         return name + "." + method
+      elif t == "component_component_block": # [2019/07/19, lyn] added by lyn 
+        return t                             # [2019/07/19, lyn] added by lyn 
+  print "***ERROR: shouldn't happen in getComponentBlockType", b
   return "myutils::getComponentBlockType: not a component block?!"
 
 # [2018/07/13] Renders the name of a block in a format
@@ -926,3 +1001,8 @@ def makeCSVLines(columns, data):
   '''
   strdata = [{colTag:str(d) for colTag,d in datum.iteritems()} for datum in data]
   return "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in columns])) for d in strdata])
+
+def maxPairs(pair1, pair2):
+  a1, b1 = pair1
+  a2, b2 = pair2
+  return ( max(a1, a2), max(b1, b2) )
