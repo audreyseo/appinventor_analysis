@@ -3,6 +3,7 @@
 # 
 # lines look like:
 # ./00/00008/p001_001_andruno_summary2.json:            "BluetoothServer.AcceptConnectionGeneric":1
+# [2019/09/07, audrey] just changed some whitespace / added comments as I was making sense of code. Also added some logic that I thought was missing but probably did not affect the accuracy when the code was ran previously
 
 import sys
 
@@ -30,8 +31,10 @@ def analyzeGenericFiles(population, filenames):
                     print(lineNum)
     numGenericUsers = len(userSet)
     numGenericProjs = len(projSet)
+    
     numUsers = userNum10k if population == '10k' else userNum46k
-    numProjs = projNum10k if population == '10k'else projNum46k
+    numProjs = projNum10k if population == '10k' else projNum46k
+    
     pctGenericUsers = round(100*numGenericUsers/numUsers, 1)
     pctGenericProjs = round(100*numGenericProjs/numProjs, 1)
     print('Generic projects is {} out of {} ({}%)'.format(
@@ -47,7 +50,10 @@ if __name__ == '__main__':
     if population not in ['10k', '46k']:
         print("First arg (population) must be one of 10k or 46k")
         exit(0)
-    analyzeGenericFiles(sys.argv[1], sys.argv[2:])
+    if len(sys.argv) <= 2: # [2019/09/07, audrey] added this if statement since  program expects three things in the args: the name of the program we're running, the string 10k or 46k, and the files containing the information from the grep
+        print('Expected at least two args, but did not find grepFiles.\nUsage: analyzeGenericGrep.py 10k/46k grepFiles ...')
+        exit(0)
+    analyzeGenericFiles(population, sys.argv[2:]) # [2019/09/07, audrey] edited to use the population var created earlier
             
 # python analyzeGenericGrep.py 10k ../../data/ai2_10K_random_users_deidentified_grep_Generic.txt            
         

@@ -192,6 +192,11 @@ def getBlockListKeys():
 def getTagsToCheck():
   return ['test', '~bodyExp']
 
+#[2019/09/07, audrey] moved this above, not sure how much order of functions
+# matters in python but might as well, since this is used later
+def getComponentBlockNameKeys():
+  # Returns the keys that hold the name of the particular component block
+  return ["instance_name", "COMPONENT_SELECTOR", "component_selector"] # [2019/07/19, lyn] lyn capitalized 2nd entry (don't know if really necessary)
 
 """Used for finding a comprehensive list of all of the component
    blocks' names used in a given block.
@@ -203,7 +208,9 @@ def getTagsToCheck():
 def findCompBlocks(blk):
   comps = set()
   # componentNameKeys = ["instance_name", "component_selector"]
-  componentNameKeys = ["instance_name", "COMPONENT_SELECTOR", "component_selector"] # [2019/07/19, lyn] lyn capitalized 2nd entry (don't know if really necessary)
+  #componentNameKeys = ["instance_name", "COMPONENT_SELECTOR", "component_selector"] # [2019/07/19, lyn] lyn capitalized 2nd entry (don't know if really necessary)
+  componentNameKeys = getComponentBlockNameKeys()
+  
   if isComponentBlock(blk):
     for name in componentNameKeys:
       if name in blk:
@@ -220,9 +227,7 @@ def findCompBlocks(blk):
         comps.update(findCompBlocks(blk[key][i]))
   return comps
 
-def getComponentBlockNameKeys():
-  # Returns the keys that hold the name of the particular component block
-  return ["instance_name", "COMPONENT_SELECTOR", "component_selector"] # [2019/07/19, lyn] lyn capitalized 2nd entry (don't know if really necessary)
+
 
 def numCompBlocksInCommon(blockA, blockB):
   blockListKeys = ['~bodyStm', '~args', '~branches', '~branchofelse', 'then']
@@ -231,7 +236,7 @@ def numCompBlocksInCommon(blockA, blockB):
   
   if isComponentBlock(blockA) and isComponentBlock(blockB):
     # nameKeys = ["instance_name", "component_selector"]
-    nameKeys = ["instance_name", "COMPONENT_SELECTOR", "component_selector"] # [2019/07/19, lyn] lyn capitalized 2nd entry (don't know if really necessary)
+    nameKeys = getComponentBlockNameKeys() #["instance_name", "COMPONENT_SELECTOR", "component_selector"] # [2019/07/19, lyn] lyn capitalized 2nd entry (don't know if really necessary) #[2019/09/07, audrey] just replaced with call to helper function....since I had the helper function anyway
     i = 0
     while count == 0 and i < len(nameKeys):
       name = nameKeys[i]
@@ -617,7 +622,7 @@ def getBlockType(b):
 def getType(b):
   typeKey = "*type"
   if typeKey in b:
-    return b["*type"]
+    return b[typeKey] # [2019/09/07, audrey] just realized that "*type" was literally in here, as a string literal
   return None
 
 # [2019/07/19, lyn] previous version didn't handle component_component_block correctly
