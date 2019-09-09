@@ -1,5 +1,4 @@
-# 2019/07/19: Lyn made changes for today's B&B 2019 genericization deadline
-# See [2019/07/19, lyn] notes below
+# Lyn's version 
 ''' abstraction.py
     Created on 2018/07/12 by Audrey Seo
 
@@ -122,6 +121,8 @@ def createDiff(blockA, blockB, nameA=None, nameB=None):
 totalGenerics = 0
 totalHandlerBlocks = 0
 totalComponents = 0
+userMaxes = {} # [2019/08/01, lyn] track max equivClassSize and equivClassNumBlocks for each user
+
 def jailToEquivs(jailLocation):
     printMessagesEverySoOften = 10000
     bigDirs = fm.getDirectories(jailLocation)
@@ -129,6 +130,7 @@ def jailToEquivs(jailLocation):
     global totalGenerics
     global totalHandlerBlocks
     global totalComponents
+
     class MyNum:
         num = 0
         totalGenerics = 0
@@ -172,13 +174,25 @@ def jailToEquivs(jailLocation):
             screenCode = jail['screens'][name]['bky']
             if isinstance(screenCode, dict):
                 blks = screenCode['topBlocks']
-                blks = [b for b in blks if '*type' in b and b['*type'] == "component_event"]
+                blks = [b for b in blks if '*type' in b and b['*type'] == "component_event"
+                        and not mus.isDisabled(b) # [2019/08/01, lyn] Added this since previous version
+                                                  # was including some disabled event handlers here
+                                                  # and they caused problems later. Disabled is effectively
+                                                  # commented out, so treat them like not there. 
+                        ]
                 if len(blks) != 0:
                     code.append(blks)
                     onlyUsedNames.append(name)
         #             screen names --> vvvvvvvvvvvvv
-        equivs.append(eclasses.ProjectSet(code, onlyUsedNames, projName, userID))
-        #                                     the user's id --> ^^^^^^^
+
+        # [2019/08/01] Changed the following four lines, adding userMaxes stuff
+        projSet = eclasses.ProjectSet(code, onlyUsedNames, projName, userID)
+        equivs.append(projSet)
+        oldMaxEquivClassSize, oldMaxEquivClassNumBlocks = (0, 0) if userID not in userMaxes else userMaxes[userID]
+        projMaxEquivClassSize, projMaxNumBlocks = projSet.maxes()
+        userMaxes[userID] = ( max(oldMaxEquivClassSize, projMaxEquivClassSize), 
+                              max(oldMaxEquivClassNumBlocks, projMaxNumBlocks)
+                            )
         MyNum.num += 1
         if MyNum.num % printMessagesEverySoOften == 0:
             mus.logwrite("equivify() in jailToEquivs()::" + str(MyNum.num) + ": " + os.path.join(usersDir, userID, projName))
@@ -210,16 +224,29 @@ def jailToEquivs(jailLocation):
 
 
 def dupesByEquivsObject(project, projectSet, equivClass):
-    # print project.programmerName, project.projectName # [2019/07/19, lyn]
     return {
         "programmer": project.programmerName,
         "project": "\"" + project.projectName + "\"",
         "screen": projectSet.screenName,
         "name": "" if equivClass.size() == 0 else "\"" + mus.getName(equivClass.members[0]) + "\"",
-        "type": "" if equivClass.size() == 0 else equivClass.members[0]["*type"],
-        "kind": "" if equivClass.size() == 0 else equivClass.members[0]["kind"],
-        "size": "0" if equivClass.size() == 0 else str(mus.countAllBlocks(equivClass.members[0])),
-        "requiresGenerics": str(equivClass.needsGenerics())
+
+        # [2019/08/01, lyn] All types are component_event, so punt
+        # "type": "" if equivClass.size() == 0 else equivClass.members[0]["*type"],
+
+        # [2019/08/01, lyn] All kinds are declaration, so punt
+        # "kind": "" if equivClass.size() == 0 else equivClass.members[0]["kind"],
+
+        # [2019/08/01, lyn] Add this field from ec_sizes (so don't need ec_sizes anymore)
+        "numberDuplicatedHandlers": str(equivClass.size()),
+
+        # [2019/08/01, lyn] Change size to numBlocks, and use equiv class numBlocks method
+        # "size": "0" if equivClass.size() == 0 else str(mus.countAllBlocks(equivClass.members[0])),
+        "numBlocks": "0" if equivClass.size() == 0 else str(equivClass.numBlocks()), 
+
+        "requiresGenerics": str(equivClass.needsGenerics()), 
+
+        # [2019/08/01, lyn] Added this
+        "isSingleProcedureCall": str(equivClass.isSingleProcedureCall())
     }
 
                         
@@ -244,7 +271,7 @@ if __name__=='__main__':
     mus.createLogFile()
     loc10k = "10kjails"
     loc46k = "46kjailzips"
-    # loc46k = "../../data/ai2_46K_prolific_users_deidentified_jails_00_00000" # [2019/07/19] lyn testing
+    # loc46k = "../../data/ai2_46K_prolific_users_deidentified_jails_00_00000"
     logEvery = 1000
     analysisType = "10k" if args.kind == 10 else "46k"
     equivs = []
@@ -256,10 +283,14 @@ if __name__=='__main__':
     else:
         equivs = jailToEquivs(loc10k)
 
-    mus.iterateOverProjectSets(equivs, mus.countAllBlocksWrapper)
+    # [2019/08/01] As far as lyn can determine, the following 4 lines have no effect b/c
+    #   (1) mus.countAllBlocksWrapper (really mus.countAllBlocks) returns a number, but doesn't have a side effect
+    #   (2) tagsSeen is no longer updated by mus.countAllBlocksWrapper (really mus.countAllBlocks)
+    # mus.iterateOverProjectSets(equivs, mus.countAllBlocksWrapper)
+    # 
+    # for k,v in tagsSeen.iteritems():
+    #    mus.logwrite(k + ": " + ", ".join(v))
 
-    for k,v in tagsSeen.iteritems():
-        mus.logwrite(k + ": " + ", ".join(v))
     #equivs = jailToEquivs("10kjails")
 
     allCount = 0
@@ -294,151 +325,189 @@ if __name__=='__main__':
     # I want to make this look better, i.e. cleaner but is it always just going to be this mess.
     for eq in equivs:
         for codeset in eq:
-            greaterThanFive = False
+            greaterThanFive = False # [2019/08/01, lyn] I set this to False, but it is never used!
             for equivClass in codeset:
                 dupesByEC.append(dupesByEquivsObject(eq, codeset, equivClass))
-                equivClass.findComponentCorrespondence()
-                ecSizes.append({
-                    "screen": codeset.screenName,
-                    "programmer": eq.programmerName,
-                    "project": eq.projectName,
-                    "numberDuplicatedHandlers": str(equivClass.size()),
-                    "blockName": equivClass.getName()
-                })
-                if equivClass.size() > 0:
-                    for blk in equivClass:
+                # equivClass.findComponentCorrespondence() # [2019/08/01, lyn] I think this is unnecessary, 
+                                                           # since dupesByEquivsObject calls equivClass.needsGenerics()
+                                                           # which calls self.findComponentCorrespondence() if 
+                                                           # self.corrmatrix == [].
+                                                           # In any case, this test shoud be moved into 
+                                                           # self.findComponentCorrespondence() itself to memoize result.
+
+# [2019/08/01, lyn] Commented out all of the following
+#                 ecSizes.append({
+#                     "screen": codeset.screenName,
+#                     "programmer": eq.programmerName,
+#                     "project": eq.projectName,
+#                     "numberDuplicatedHandlers": str(equivClass.size()),
+#                     "blockName": equivClass.getName()
+#                 })
+#                 if equivClass.size() > 0: # [2019/08/01, lyn] This is always true, so why test? 
+#                     for blk in equivClass:
                         
-                        ind += 1
-                        tmpAll = mus.countAllBlocks(blk)
-                        tmpComp, tmpGeneric = mus.countComponents(blk)
-                        if "numBlocks" not in ecSizes[len(ecSizes)-1]:
-                            ecSizes[len(ecSizes) - 1]["numBlocks"] = str(tmpAll)
-                        if shouldPrint and tmpAll > 30:
-                            print mus.prettyPrint(blk)
-                            shouldPrint = False
-                        if tmpAll > 5:
-                            totalBlocks += 1
-                            allCount += tmpAll
-                            compCount += tmpComp
-                            if 'kind' in blk:
-                                numBlocksWithKind += 1
-                                k = blk['kind']
-                                tipe = blk['*type']
-                                if tipe == "procedures_defreturn":
-                                    procedureReturns.append(eq.projectName + "-" + eq.programmerName)
-                                if k in kindsDict:
-                                    kindsDict[k] += 1
-                                else:
-                                    kindsDict[k] = 1
-                                if tipe != "global_declaration" and k == "declaration":
-                                    decls.append({"type": tipe,
-                                                  "kind": k,
-                                                  "name": "\"" + mus.getName(blk) + "\"",
-                                                  "screen": codeset.screenName,
-                                                  "programmer": eq.programmerName,
-                                                  "project":  "\"" + eq.projectName + "\"",
-                                                  "numBlocks": str(tmpAll),
-                                                  "numCompBlocks": str(tmpComp),
-                                                  "numDupes": str(equivClass.size())
-                                    })
-                                    totalNumBlocksBesidesGlobalDecls += tmpAll
-                                    totalNumCompBlocksWOGlobalDecls += tmpComp
-                                    if k not in declTypeKinds:
-                                        declTypeKinds[k] = {}
-                                    if tipe not in declTypeKinds[k]:
-                                        declTypeKinds[k][tipe] = {}
+#                         ind += 1
+#                         tmpAll = mus.countAllBlocks(blk) # ***==> [2019/08/01, lyn]
+#                                                          # should really make this an operation on equivClass so:
+#                                                          # (1) Calculate it for only one member of equiv class
+#                                                          # (2) Store it in equiv class so it never needs to be calcualted again.
+#                         tmpComp, tmpGeneric = mus.countComponents(blk) # ***==> [2019/08/01, lyn] Similar remarks to previous comment
+#                         # [2019/08/01, lyn] the next two lines are hacky; should be done above in dictionary added to ecSizes
+#                         if "numBlocks" not in ecSizes[len(ecSizes)-1]: 
+#                             ecSizes[len(ecSizes) - 1]["numBlocks"] = str(tmpAll)
+#                         if shouldPrint and tmpAll > 30: # [2019/08/01, lyn] For debugging? 
+#                             print mus.prettyPrint(blk)
+#                             shouldPrint = False
+#                         if tmpAll > 5: # ***==> [2019/08/01, lyn] WHOAH, THIS IS HARDWIRED CHECK FOR NUM BLOCKS > 5.
+#                                        # WHAT EFFECT DOES THIS HAVE ON RESULTS? 
+#                             totalBlocks += 1
+#                             allCount += tmpAll
+#                             compCount += tmpComp
+#                             if 'kind' in blk:
+#                                 numBlocksWithKind += 1
+#                                 k = blk['kind']
+#                                 tipe = blk['*type']
+#                                 if tipe == "procedures_defreturn":
+#                                     procedureReturns.append(eq.projectName + "-" + eq.programmerName)
+#                                 if k in kindsDict:
+#                                     kindsDict[k] += 1
+#                                 else:
+#                                     kindsDict[k] = 1
+#                                 if tipe != "global_declaration" and k == "declaration":
+#                                     decls.append({"type": tipe,
+#                                                   "kind": k,
+#                                                   "name": "\"" + mus.getName(blk) + "\"",
+#                                                   "screen": codeset.screenName,
+#                                                   "programmer": eq.programmerName,
+#                                                   "project":  "\"" + eq.projectName + "\"",
+#                                                   "numBlocks": str(tmpAll),
+#                                                   "numCompBlocks": str(tmpComp),
+#                                                   "numDupes": str(equivClass.size())
+#                                     })
+#                                     totalNumBlocksBesidesGlobalDecls += tmpAll
+#                                     totalNumCompBlocksWOGlobalDecls += tmpComp
+#                                     if k not in declTypeKinds:
+#                                         declTypeKinds[k] = {}
+#                                     if tipe not in declTypeKinds[k]:
+#                                         declTypeKinds[k][tipe] = {}
                                     
-                                    declTypeKinds[k][tipe]['num'] = 1
-                                    declTypeKinds[k][tipe]['all'] = tmpAll
-                                    declTypeKinds[k][tipe]['comp'] = tmpComp
-                                    declTypeKinds[k][tipe]['generic'] = tmpGeneric
-                            else:
-                                numComponentBlocksWithoutKind+=1
+#                                     declTypeKinds[k][tipe]['num'] = 1
+#                                     declTypeKinds[k][tipe]['all'] = tmpAll
+#                                     declTypeKinds[k][tipe]['comp'] = tmpComp
+#                                     declTypeKinds[k][tipe]['generic'] = tmpGeneric
+#                             else:
+#                                 numComponentBlocksWithoutKind+=1
 
-                            tipe = blk['*type']
-                            if (tmpComp == 0 and tmpAll != 0) or (tipe == "component_event" and tmpComp == 1):
-                                k = blk['kind']
+#                             tipe = blk['*type']
+#                             if (tmpComp == 0 and tmpAll != 0) or (tipe == "component_event" and tmpComp == 1):
+#                                 k = blk['kind']
 
-                                if tipe not in nonComponentBlockTypes:
-                                    nonComponentBlockTypes[tipe] = 1
-                                else:
-                                    nonComponentBlockTypes[tipe] += 1
+#                                 if tipe not in nonComponentBlockTypes:
+#                                     nonComponentBlockTypes[tipe] = 1
+#                                 else:
+#                                     nonComponentBlockTypes[tipe] += 1
 
-                                if k not in nonComponentBlockTypesKinds:
-                                    nonComponentBlockTypesKinds[k] = {}
+#                                 if k not in nonComponentBlockTypesKinds:
+#                                     nonComponentBlockTypesKinds[k] = {}
 
-                                if tipe not in nonComponentBlockTypesKinds[k]:
-                                    nonComponentBlockTypesKinds[k][tipe] = 1
-                                else:
-                                    nonComponentBlockTypesKinds[k][tipe] += 1
+#                                 if tipe not in nonComponentBlockTypesKinds[k]:
+#                                     nonComponentBlockTypesKinds[k][tipe] = 1
+#                                 else:
+#                                     nonComponentBlockTypesKinds[k][tipe] += 1
                                 
-                                topBlocksWithNoComps += 1
+#                                 topBlocksWithNoComps += 1
                                 
-                            if ind % logEvery == 0:
-                                mus.logwrite(eq.identity() + "::" + equivClass.getName() +  ":: all, comp: " + str(allCount) + ", " + str(compCount))
-                                equivClass.showCorrespondence()
-            #if greaterThanFive:
-            scrn = codeset.screenName
-            basics = {"programmer": eq.programmerName,
-                      "project": "\"" + eq.projectName + "\"",
-                      "screen": codeset.screenName,
-                      "numEquivClasses": str(codeset.numClasses()),
-                      "totalDuplicatedHandlers": str(0) if codeset.numClassesLargeEnough() == 0 else str(reduce((lambda x, y: x + y), codeset.sizes(useLargeEnough=True))),
-                      "avgNumBlocks": str(codeset.avgNumBlocks(True))
-            }
-            duplicationsByScreen.append(basics)                
+#                             if ind % logEvery == 0:
+#                                 mus.logwrite(eq.identity() + "::" + equivClass.getName() +  ":: all, comp: " + str(allCount) + ", " + str(compCount))
+#                                 equivClass.showCorrespondence()
+#             #if greaterThanFive:
+#             scrn = codeset.screenName
+#             basics = {"programmer": eq.programmerName,
+#                       "project": "\"" + eq.projectName + "\"",
+#                       "screen": codeset.screenName,
+#                       "numEquivClasses": str(codeset.numClasses()),
+#                       "totalDuplicatedHandlers": str(0) if codeset.numClassesLargeEnough() == 0 else str(reduce((lambda x, y: x + y), codeset.sizes(useLargeEnough=True))),
+#                       "avgNumBlocks": str(codeset.avgNumBlocks(True))
+#             }
+#             duplicationsByScreen.append(basics)                
 
-    print compCount, allCount, topBlocksWithNoComps, totalBlocks, numBlocksWithKind
-    print totalNumBlocksBesidesGlobalDecls, totalNumCompBlocksWOGlobalDecls
+#     print compCount, allCount, topBlocksWithNoComps, totalBlocks, numBlocksWithKind
+#     print totalNumBlocksBesidesGlobalDecls, totalNumCompBlocksWOGlobalDecls
 
-    print mus.prettyPrint(nonComponentBlockTypes)
-    print mus.prettyPrint(kindsDict)
-    print mus.prettyPrint(nonComponentBlockTypesKinds)
+#     print mus.prettyPrint(nonComponentBlockTypes)
+#     print mus.prettyPrint(kindsDict)
+#     print mus.prettyPrint(nonComponentBlockTypesKinds)
 
-    declarationTypesDictLoc = os.path.join(txtDirectory, analysisType + "declarationtypesdict.txt")
-    procedureNamesLoc = os.path.join(txtDirectory, analysisType + "procedurenames.txt")
+#     declarationTypesDictLoc = os.path.join(txtDirectory, analysisType + "declarationtypesdict.txt")
+#     procedureNamesLoc = os.path.join(txtDirectory, analysisType + "procedurenames.txt")
 
-    with open(declarationTypesDictLoc, "w") as f:
-        f.write(mus.prettyPrint(declTypeKinds))
-        f.flush()
+#     with open(declarationTypesDictLoc, "w") as f:
+#         f.write(mus.prettyPrint(declTypeKinds))
+#         f.flush()
 
-    with open(procedureNamesLoc, "w") as f:
-        f.write('\n'.join(procedureReturns))
-        f.flush()
+#     with open(procedureNamesLoc, "w") as f:
+#         f.write('\n'.join(procedureReturns))
+#         f.flush()
 
 
-    declarationFactsLoc = os.path.join(csvDirectory, analysisType + "declfacts.csv")
-    dupesLoc = os.path.join(csvDirectory, analysisType + "-dupes.csv")
+#   declarationFactsLoc = os.path.join(csvDirectory, analysisType + "declfacts.csv")
+#   dupesLoc = os.path.join(csvDirectory, analysisType + "-dupes.csv")
     equivclassDupesLoc = os.path.join(csvDirectory, analysisType + "-ec_dupes.csv")
-    ecSizesLoc = os.path.join(csvDirectory, analysisType + "-ec_sizes.csv")
+    userMaxesLoc = os.path.join(csvDirectory, analysisType + "-user_maxes.csv")
+#   ecSizesLoc = os.path.join(csvDirectory, analysisType + "-ec_sizes.csv")
 
-    print declarationFactsLoc, dupesLoc, equivclassDupesLoc
+#   print declarationFactsLoc, dupesLoc, equivclassDupesLoc
+    print equivclassDupesLoc, userMaxesLoc
     
-    with open(declarationFactsLoc, "w") as f:
-        cols = ["type", "kind", "name", "screen", "programmer", "project", "numBlocks", "numCompBlocks", "numDupes"]
-        declCSVLines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in decls])
-        f.write(",".join(cols) + "\n")
-        f.write(declCSVLines)
-        f.flush()
+#     with open(declarationFactsLoc, "w") as f:
+#         cols = ["type", "kind", "name", "screen", "programmer", "project", "numBlocks", "numCompBlocks", "numDupes"]
+#         declCSVLines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in decls])
+#         f.write(",".join(cols) + "\n")
+#         f.write(declCSVLines)
+#         f.flush()
 
-    with open(dupesLoc, "w") as f:
-        cols = ["programmer", "project", "screen", "numEquivClasses", "totalDuplicatedHandlers", "avgNumBlocks"]
-        csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in duplicationsByScreen])
-        f.write(",".join(cols) + "\n")
-        f.write(csvlines)
-        f.flush()
+#     with open(dupesLoc, "w") as f:
+#         cols = ["programmer", "project", "screen", "numEquivClasses", "totalDuplicatedHandlers", "avgNumBlocks"]
+#         csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in duplicationsByScreen])
+#         f.write(",".join(cols) + "\n")
+#         f.write(csvlines)
+#         f.flush()
 
     with open(equivclassDupesLoc, "w") as f:
-        cols = ["programmer", "project", "screen", "type", "kind", "name", "size", "requiresGenerics"]
+        # cols = ["programmer", "project", "screen", "type", "kind", "name", "size", "requiresGenerics"]
+        # [2019/08/01, lyn] changed columns
+        cols = ["programmer", "project", "screen", "name", 
+                "numberDuplicatedHandlers", "numBlocks" , "requiresGenerics", "isSingleProcedureCall"]
         csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in dupesByEC])
         f.write(",".join(cols) + "\n")
         f.write(csvlines)
         f.flush()
 
-    with open(ecSizesLoc, "w") as f:
-        cols = ["programmer", "project", "screen", "blockName", "numberDuplicatedHandlers", "numBlocks"]
-        csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in ecSizes])
+#     with open(ecSizesLoc, "w") as f:
+#         cols = ["programmer", "project", "screen", "blockName", "numberDuplicatedHandlers", "numBlocks"]
+#         csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), [d[colTag] for colTag in cols])) for d in ecSizes])
+#         f.write(",".join(cols) + "\n")
+#         f.write(csvlines)
+#         f.flush()
+
+    def userMaxesLines(userMaxesDict):
+        sortedUsers = sorted(userMaxesDict.keys())
+        return [userMaxesLine(user, userMaxesDict) for user in sortedUsers]
+
+    def userMaxesLine(user, userMaxesDict):
+        if user in userMaxesDict:
+            max1, max2 = userMaxesDict[user]
+        else:
+            max1, max2 = (0, 0)
+        return [user, str(max1), str(max2)]
+
+    # [2019/08/01, lyn] New cvs file for tracking user maxes.
+    with open(userMaxesLoc, "w") as f:
+        cols = ["programmer", "maxEquivClassSize", "maxEquivClassNumBlocks"]
+        csvlines = "\n".join([",".join(map(lambda x: x.encode("utf-8"), line))
+                              for line in userMaxesLines(userMaxes)])
         f.write(",".join(cols) + "\n")
         f.write(csvlines)
         f.flush()
+
         
